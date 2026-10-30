@@ -1,0 +1,37 @@
+# secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# node
+node_modules/
+.next/
+out/
+
+# models & large files (서버에만 두기)
+models/
+*.gguf
+*.safetensors
+*.bin
+*.onnx
+
+# data: 원본/개인 데이터는 절대 커밋 금지
+data/raw/
+data/private/
+uploads/
+outputs/
+
+# os/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
