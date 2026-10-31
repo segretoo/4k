@@ -16,11 +16,13 @@ def root() -> Path:
     return settings.tmp_dir
 
 
-def new_upload() -> tuple[str, Path]:
+def new_upload(owner_id: str = "") -> tuple[str, Path]:
     upload_id = uuid.uuid4().hex
     path = root() / upload_id
-    (path / "photos").mkdir(parents=True)
-    (path / "thumbs").mkdir()
+    path.mkdir(mode=0o700)
+    (path / "photos").mkdir(mode=0o700)
+    (path / "thumbs").mkdir(mode=0o700)
+    (path / ".owner").write_text(owner_id, encoding="ascii")
     return upload_id, path
 
 
@@ -30,6 +32,16 @@ def upload_dir(upload_id: str) -> Path | None:
         return None
     path = root() / upload_id
     return path if path.is_dir() else None
+
+
+def owned_upload(upload_id: str, owner_id: str) -> Path | None:
+    folder = upload_dir(upload_id)
+    if folder is None or not owner_id:
+        return None
+    try:
+        return folder if (folder / ".owner").read_text(encoding="ascii") == owner_id else None
+    except OSError:
+        return None
 
 
 def remove(upload_id: str) -> None:
@@ -49,6 +61,7 @@ def sweep_expired() -> int:
 
 
 def reset_all() -> None:
-    """서버 재시작: 임시 폴더 전체 비우기."""
-    shutil.rmtree(settings.tmp_dir, ignore_errors=True)
-    root()
+    """서버 재시작: 관리하는 무작위 업로드 폴더만 비운다."""
+    for folder in root().iterdir():
+        if folder.is_dir() and not folder.is_symlink() and ID_RE.fullmatch(folder.name):
+            shutil.rmtree(folder, ignore_errors=True)

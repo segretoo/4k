@@ -145,7 +145,7 @@ class JobStatus(BaseModel):
 
 # ---------- UC2 ----------
 class CheckMeta(BaseModel):
-    caption: str = ""
+    caption: str = Field(default="", max_length=2200)
     prior_clues: list[Clue] = []
 
 

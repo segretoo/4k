@@ -2,17 +2,19 @@
 from app.config import settings
 from app.schemas.contracts import PhotoSummary, PostSummary, ScreenResult
 from app.services.gpu_client import GpuError, get_gpu
+from app.services.gpu_queue import QueueBusy
 from app.services.text_rules import keyword_hints
 
 
-async def screen(posts: list[dict]) -> dict[str, ScreenResult]:
+async def screen(posts: list[dict], owner_id: str = "") -> dict[str, ScreenResult]:
     """GPU가 실패하면 단어 규칙으로 대신한다 (추천은 순서만 정하므로 틀려도 사용자가 고칠 수 있음)."""
-    targets = [{"post_id": p["post_id"], "caption": p["caption"]} for p in posts[: settings.max_screen_captions] if p["caption"]]
+    targets = [{"post_id": p["post_id"], "caption": p["caption"], "owner_id": owner_id}
+               for p in posts[: settings.max_screen_captions] if p["caption"]]
     results: dict[str, ScreenResult] = {}
     if targets:
         try:
             results = {r.post_id: r for r in await get_gpu().screen_captions(targets)}
-        except GpuError:
+        except (GpuError, QueueBusy):
             results = {}
     for p in posts:
         if p["post_id"] not in results:

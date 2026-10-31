@@ -1,8 +1,10 @@
 """Run every image through the real CPU→GPU check/mask API and save per-image evidence."""
 import argparse
 import base64
+import hashlib
 import json
 from pathlib import Path
+import re
 import time
 
 import httpx
@@ -16,6 +18,7 @@ def main():
     parser.add_argument("--expected", type=int, default=34)
     parser.add_argument("--exclude", action="append", default=["contact.jpg"],
                         help="Generated contact sheet excluded by the approved evaluation manifest")
+    parser.add_argument("--retry-failed", action="store_true", help="Preserve successes and retry only failed images")
     args = parser.parse_args()
     images = sorted({path.resolve() for folder in args.image_dir for path in folder.rglob("*")
                      if path.suffix.lower() in {".jpg", ".jpeg", ".png"}
@@ -23,6 +26,12 @@ def main():
     if len(images) != args.expected:
         raise SystemExit(f"Expected {args.expected} images, found {len(images)}; refusing partial-set evaluation")
     results = []
+    previous = {}
+    if args.retry_failed and (args.out / "progress.json").exists():
+        saved = (args.out / "progress.json").read_text(encoding="utf-8")
+        previous = {row["image"]: row for row in json.loads(saved)}
+        (args.out / f"before_retry_{int(time.time())}.json").write_text(saved, encoding="utf-8")
+    expected_profile = re.fullmatch(r"edge_(1280|2200)_(ocr_first|vlm_first)", args.out.name)
     with httpx.Client(base_url=args.url.rstrip("/"), timeout=300) as client:
         status = client.get("/api/status")
         status.raise_for_status()
@@ -31,9 +40,16 @@ def main():
             raise SystemExit("Real GPU API is not ready; refusing to report mock data as model evidence")
         args.out.mkdir(parents=True, exist_ok=True)
         for index, path in enumerate(images, 1):
+            with path.open("rb") as file:
+                source_hash = hashlib.file_digest(file, "sha256").hexdigest()
+            if previous.get(path.name, {}).get("status") == "completed":
+                prior = dict(previous[path.name], source_sha256=source_hash, source_path=str(path))
+                results.append(prior)
+                continue
             folder = args.out / f"{index:03}"
             folder.mkdir(exist_ok=True)
-            row = {"image": path.name, "index": index, "status": "failed"}
+            row = {"image": path.name, "index": index, "status": "failed",
+                   "source_sha256": source_hash, "source_path": str(path)}
             try:
                 started = time.perf_counter()
                 with path.open("rb") as file:
@@ -45,6 +61,11 @@ def main():
                 row["region_count"] = len(checked["regions"])
                 row["requires_review"] = checked["requires_review"]
                 row["pipeline_metrics"] = checked.get("pipeline_metrics", {})
+                if expected_profile:
+                    measured = row["pipeline_metrics"]
+                    if (measured.get("pipeline_order") != expected_profile[2]
+                            or measured.get("input_edges", {}).get("vlm_long_edge") != int(expected_profile[1])):
+                        raise RuntimeError("API profile does not match the requested benchmark condition")
                 (folder / "check.json").write_text(json.dumps(checked, ensure_ascii=False, indent=2), encoding="utf-8")
                 if checked["regions"]:
                     mask_started = time.perf_counter()

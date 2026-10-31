@@ -21,6 +21,8 @@ class Settings:
     gpu_timeout_s: float = float(os.getenv("GPU_TIMEOUT_S", "120"))
     mock_delay_s: float = float(os.getenv("MOCK_DELAY_S", "0.6"))
     mock_fixture: Path = Path(os.getenv("MOCK_FIXTURE", "../data/demo/mock_gpu.json"))
+    session_secret: str = os.getenv("SESSION_SECRET", "")
+    session_cookie_secure: bool = _bool("SESSION_COOKIE_SECURE", False)
 
     # 분석 수량과 후보 범위
     max_photos: int = int(os.getenv("MAX_PHOTOS", "10"))

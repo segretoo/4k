@@ -15,9 +15,7 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps, ImageStat
 from app.config import settings
 from app.schemas.contracts import AnalyzeResult, Entity, MaskResponse, ScreenResult, TextItem, risk_level
 from app.services.text_rules import caption_entities, keyword_hints
-
-# GPU는 한 번에 한 작업만 (L4 24GB 과부하 방지)
-_gpu_lock = asyncio.Lock()
+from app.services.gpu_queue import gpu_queue
 
 
 class GpuError(RuntimeError):
@@ -30,8 +28,8 @@ class HttpGpu:
         self.base = settings.gpu_url.rstrip("/")
         self.headers = {"X-API-Key": settings.gpu_api_key} if settings.gpu_api_key else {}
 
-    async def _post(self, path: str, **kwargs) -> dict:
-        async with _gpu_lock:
+    async def _post(self, path: str, *, owner_id: str = "", **kwargs) -> dict:
+        async with gpu_queue.slot(owner_id):
             try:
                 async with httpx.AsyncClient(timeout=settings.gpu_timeout_s) as client:
                     r = await client.post(self.base + path, headers=self.headers, **kwargs)
@@ -48,12 +46,14 @@ class HttpGpu:
             return False
 
     async def screen_captions(self, posts: list[dict]) -> list[ScreenResult]:
-        data = await self._post("/gpu/v1/screen-captions", json={"posts": posts})
+        data = await self._post("/gpu/v1/screen-captions", owner_id=posts[0].get("owner_id", "") if posts else "",
+                                json={"posts": [{k: v for k, v in post.items() if k != "owner_id"} for post in posts]})
         return [ScreenResult(**r) for r in data.get("results", [])]
 
     async def analyze(self, image: bytes, meta: dict) -> AnalyzeResult:
         data = await self._post(
             "/gpu/v1/analyze",
+            owner_id=meta.get("owner_id", ""),
             files={"file": ("photo.jpg", image, "image/jpeg")},
             data={"meta": json.dumps(meta, ensure_ascii=False)},
         )
@@ -69,11 +69,12 @@ class HttpGpu:
     async def mask(self, image: bytes, boxes: list[list[int]], targets: list[str],
                    polygons: list[list[list[int]]] | None = None,
                    region_ids: list[str] | None = None,
-                   regions: list[dict] | None = None) -> MaskResponse:
+                   regions: list[dict] | None = None, owner_id: str = "") -> MaskResponse:
         meta = {"boxes": boxes, "targets": targets, "polygons": polygons or [],
                 "region_ids": region_ids or [], "regions": regions or []}
         data = await self._post(
             "/gpu/v1/mask",
+            owner_id=owner_id,
             files={"file": ("photo.jpg", image, "image/jpeg")},
             data={"meta": json.dumps(meta, ensure_ascii=False)},
         )
@@ -122,7 +123,8 @@ class MockGpu:
         return True
 
     async def screen_captions(self, posts: list[dict]) -> list[ScreenResult]:
-        await asyncio.sleep(min(settings.mock_delay_s, 0.3))
+        async with gpu_queue.slot(posts[0].get("owner_id", "") if posts else ""):
+            await asyncio.sleep(min(settings.mock_delay_s, 0.3))
         out = []
         for p in posts:
             hints = keyword_hints(p.get("caption", ""))
@@ -130,7 +132,7 @@ class MockGpu:
         return out
 
     async def analyze(self, image: bytes, meta: dict) -> AnalyzeResult:
-        async with _gpu_lock:
+        async with gpu_queue.slot(meta.get("owner_id", "")):
             await asyncio.sleep(settings.mock_delay_s)
         fx = _lookup(image, meta.get("source", ""))
         texts = [TextItem(**t) for t in fx.get("texts", [])]
@@ -147,9 +149,9 @@ class MockGpu:
     async def mask(self, image: bytes, boxes: list[list[int]], targets: list[str],
                    polygons: list[list[list[int]]] | None = None,
                    region_ids: list[str] | None = None,
-                   regions: list[dict] | None = None) -> MaskResponse:
+                   regions: list[dict] | None = None, owner_id: str = "") -> MaskResponse:
         """CPU demo returns alpha-composited fragments, never a completed full image."""
-        async with _gpu_lock:
+        async with gpu_queue.slot(owner_id):
             await asyncio.sleep(min(settings.mock_delay_s, 0.3))
         with Image.open(io.BytesIO(image)) as im:
             source = ImageOps.exif_transpose(im).convert("RGB")

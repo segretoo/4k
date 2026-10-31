@@ -2,7 +2,7 @@
 import io
 import json
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import ValidationError
 
@@ -10,6 +10,7 @@ from app.config import settings
 from app.schemas.contracts import CheckMeta, CheckResponse, MaskMeta, MaskResponse
 from app.services import precheck
 from app.services.gpu_client import GpuError, get_gpu
+from app.services.gpu_queue import QueueBusy
 
 router = APIRouter(prefix="/api/uc2", tags=["UC2 올리기 전 점검"])
 
@@ -46,18 +47,21 @@ def _meta(raw: str, model):
 
 
 @router.post("/check", response_model=CheckResponse)
-async def check(file: UploadFile = File(...), meta: str = Form("{}")) -> CheckResponse:
+async def check(request: Request, file: UploadFile = File(...), meta: str = Form("{}")) -> CheckResponse:
     m: CheckMeta = _meta(meta, CheckMeta)
     image, size = await _read_image(file)
     try:
-        result = await get_gpu().analyze(image, {"photo_id": "uc2", "post_id": "uc2", "caption": m.caption, "source": file.filename or ""})
+        result = await get_gpu().analyze(image, {"photo_id": "uc2", "post_id": "uc2", "caption": m.caption,
+                                                "source": file.filename or "", "owner_id": request.state.owner_id})
+    except QueueBusy as e:
+        raise HTTPException(429, "분석 대기 중이거나 이 브라우저에서 처리 중인 요청이 있어요. 잠시 후 다시 시도해 주세요.") from e
     except GpuError as e:
         raise HTTPException(503, "분석 서버가 응답하지 않아요. 잠시 후 다시 시도해 주세요.") from e
     return precheck.build(result, m.caption, m.prior_clues, size)
 
 
 @router.post("/mask", response_model=MaskResponse)
-async def mask(file: UploadFile = File(...), meta: str = Form(...)) -> MaskResponse:
+async def mask(request: Request, file: UploadFile = File(...), meta: str = Form(...)) -> MaskResponse:
     m: MaskMeta = _meta(meta, MaskMeta)
     image, (w, h) = await _read_image(file)
     regions = [r.model_dump() for r in m.regions]
@@ -88,6 +92,9 @@ async def mask(file: UploadFile = File(...), meta: str = Form(...)) -> MaskRespo
             polygons=[r.get("polygon") for r in regions],
             region_ids=[r.get("id", f"r{i+1}") for i, r in enumerate(regions)],
             regions=regions,
+            owner_id=request.state.owner_id,
         )
+    except QueueBusy as e:
+        raise HTTPException(429, "분석 대기 중이거나 이 브라우저에서 처리 중인 요청이 있어요. 잠시 후 다시 시도해 주세요.") from e
     except GpuError as e:
         raise HTTPException(503, "분석 서버가 응답하지 않아요. 잠시 후 다시 시도해 주세요.") from e

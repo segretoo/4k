@@ -1,4 +1,5 @@
 """UC1 분석 작업: 고른 사진을 한 장씩 GPU로 보내고, 끝나면 업로드 폴더를 지운다."""
+import asyncio
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -6,12 +7,14 @@ from dataclasses import dataclass, field
 from app.schemas.contracts import EngineResult, Entity, JobStatus
 from app.services import engine, storage
 from app.services.gpu_client import GpuError, get_gpu
+from app.services.gpu_queue import QueueBusy
 
 
 @dataclass
 class Job:
     upload_id: str
     total: int
+    owner_id: str = ""
     status: str = "queued"
     done: int = 0
     result: EngineResult | None = None
@@ -22,15 +25,15 @@ class Job:
 JOBS: dict[str, Job] = {}
 
 
-def create(upload_id: str, total: int) -> str:
+def create(upload_id: str, total: int, owner_id: str = "") -> str:
     job_id = uuid.uuid4().hex
-    JOBS[job_id] = Job(upload_id=upload_id, total=total)
+    JOBS[job_id] = Job(upload_id=upload_id, total=total, owner_id=owner_id)
     return job_id
 
 
-def status(job_id: str) -> JobStatus | None:
+def status(job_id: str, owner_id: str | None = None) -> JobStatus | None:
     job = JOBS.get(job_id)
-    if not job:
+    if not job or (owner_id is not None and job.owner_id != owner_id):
         return None
     return JobStatus(status=job.status, done=job.done, total=job.total, result=job.result, error=job.error)
 
@@ -60,16 +63,22 @@ async def run(job_id: str, posts: list[dict], selected: list[str]) -> None:
             post_entities.setdefault(pid, [])
             try:
                 image = (folder / "photos" / f"{photo_id}.jpg").read_bytes()
-                res = await gpu.analyze(
-                    image,
-                    {
-                        "photo_id": photo_id,
-                        "post_id": pid,
-                        "caption": post.get("caption", ""),
-                        "posted_at": post.get("posted_at"),
-                        "source": photo.get("source", ""),
-                    },
-                )
+                while True:
+                    try:
+                        res = await gpu.analyze(
+                            image,
+                            {
+                                "photo_id": photo_id,
+                                "post_id": pid,
+                                "caption": post.get("caption", ""),
+                                "posted_at": post.get("posted_at"),
+                                "source": photo.get("source", ""),
+                                "owner_id": job.owner_id,
+                            },
+                        )
+                        break
+                    except QueueBusy:
+                        await asyncio.sleep(0.25)  # 대기 한도는 큐에서 보장하고, UC1 배치는 순서를 유지한다.
                 post_entities[pid].extend(res.entities)
             except (GpuError, OSError, ValueError):
                 failed.append(photo_id)  # 한 장 실패해도 나머지는 계속

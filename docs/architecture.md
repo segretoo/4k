@@ -5,7 +5,7 @@
 | Part | Host | Work | Image retention |
 |---|---|---|---|
 | Mobile/web client | User device | Select a photo, send it for screening, show detected regions, let the user toggle regions, composite the returned fragments, export the final JPEG | Keeps the original and final image locally; final canvas export drops EXIF/GPS |
-| Product API | CPU server `10.1.1.30` | Request validation, EXIF orientation, resize to a 2200px long edge, caption/risk rules, per-request routing, user-facing API and static frontend | UC2 photo bytes stay in request memory; UC1 export files use a private temp directory with TTL and cleanup |
+| Product API | CPU server `10.1.1.30` | Request validation, EXIF orientation, resize to a 2200px long edge, caption/risk rules, fair GPU admission, user-facing API and static frontend | UC2 photo bytes stay in request memory; UC1 export files use an owner-scoped private temp directory with TTL and cleanup |
 | Vision API | GPU server `10.1.2.30` / NVIDIA L4 24GB | PP-OCRv5 OCR, Qwen3.5-4B BF16 risk review, vector geometry, selected-region masking and OCR rescan | UC2 image/result held in memory; product routes do not write source images or OCR JSON to artifacts |
 
 The browser talks only to the CPU API. The CPU API calls the GPU API on the private network using an API key. The GPU API is not exposed publicly. Keep one BF16 model process on the L4: the 34-image test reached 13.12 GiB peak reserved memory for one process, so two independent BF16 processes are not safe to assume on a 24 GiB card.
@@ -33,7 +33,7 @@ The browser talks only to the CPU API. The CPU API calls the GPU API on the priv
 
 ### CPU host
 
-Install the FastAPI dependencies from `backend/requirements.txt`, build the web app, set `GPU_MOCK=false`, and configure `GPU_URL=http://10.1.2.30:8080` plus the same `GPU_API_KEY` as the GPU service. Run one CPU API worker: UC1 jobs are held in process memory, so multiple workers would disagree about job state. GPU calls are serialized by the client lock and GPU semaphore. Set Uvicorn `--limit-concurrency 8` on the 8 GiB CPU host to bound simultaneous uploads. UC1 uses temporary files; UC2 does not persist application files, although multipart uploads can spool to OS temporary files closed after reading.
+Install the FastAPI dependencies from `backend/requirements.txt`, build the web app, set `GPU_MOCK=false`, and configure `GPU_URL=http://10.1.2.30:8080`, `SESSION_SECRET` (32+ random characters), and the same `GPU_API_KEY` as the GPU service. Run one CPU API worker: UC1 jobs and the fair queue are held in process memory, so multiple workers would disagree about job state and fairness. The CPU gateway admits one GPU request at a time, keeps a FIFO round-robin-by-browser waiting line with a four-request cap, and allows at most one waiting request per browser. The L4 endpoint has its own single inference slot and bounded queue. A full or duplicate wait receives HTTP 429 and can be retried. Set Uvicorn `--limit-concurrency 8` on the 8 GiB CPU host to bound simultaneous uploads. UC1 uses owner-scoped temporary files; UC2 does not persist application files, although multipart uploads can spool to OS temporary files closed after reading.
 
 ### GPU host
 
@@ -43,7 +43,9 @@ The image routes used by the product are `/gpu/v1/health`, `/gpu/v1/screen-capti
 
 ## User identity and data lifecycle
 
-The current prototype has no login/session provider. Do not accept a client-supplied `user_id` as authentication. In production, authenticate the client at the CPU API (for example, a signed session/JWT), derive the user ID from the verified principal, and scope any saved UC1 upload/job to that identity. UC2 screening is request/response and needs no persistent user folder: use a random request ID for tracing, do not send the user ID to the GPU, and discard image buffers when the request finishes. The model process remains warm; do not create a GPU instance per uploaded photo.
+The prototype issues a signed, HttpOnly browser session cookie and derives a random owner ID from it; callers cannot choose their own `user_id`. UC1 uploads, thumbnails, and jobs are scoped to that owner. This distinguishes browsers, but is not an account login: use the product's authenticated principal when one is available. UC2 screening is request/response and needs no persistent user folder: discard image buffers when the request finishes. The fair queue receives only the random owner ID inside the CPU API; that identity is not sent to the GPU. The model process remains warm; do not create a GPU instance per uploaded photo.
+
+UC1 uploads are private temporary directories, removed when a job completes/fails, when cancelled, on service restart, or after the TTL. Use an OS-managed temporary filesystem with private permissions and monitor its capacity. A tmpfs mount reduces disk persistence but consumes the CPU host's 8 GiB RAM; do not enable it at the current 1.5 GiB extracted-upload limit without measuring peak concurrent extraction and memory headroom. UC2 is already memory-only at the application layer; OS multipart spooling and crash dumps/swap still need production host policy. Deletion from an ordinary disk filesystem is not a guarantee of forensic erasure.
 
 The product-facing GPU adapter does not save source images or OCR results. The multipart parser may spool uploads to OS temporary files; the adapter closes them immediately after reading, and request buffers become reclaimable when processing finishes. A separate benchmark/debug route may retain small output artifacts under its configured TTL; disable or firewall that route in production. Never put image samples, `.env`, API keys, or OCR logs in Git.
 
