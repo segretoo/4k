@@ -1,5 +1,7 @@
 # 34-image pipeline evaluation (2026-10-31)
 
+> Historical pilot results: this document records the first OCR-first runs and the six-image VLM-first subset. They were superseded by the completed 34-image × 4-condition NCP matrix on 2026-11-01. Use the final results in [implementation-validation.md](implementation-validation.md) and [architecture.md](architecture.md) for current decisions; the six-image VLM-first table below is not the final comparison.
+
 The visual reference labels were manually reviewed by the agent for 34 images: 32 positive scenes and 2 negative scenes. The set contains 15 images from the GPU server and 19 Drive images; generated contact-sheet material was excluded. Metrics below are scene-level, not character error rate or polygon IoU.
 
 ## Full-set comparison: OCR-first

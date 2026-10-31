@@ -50,7 +50,7 @@ cd frontend && npm install && npm run dev     # http://localhost:5173
 - 시연: `data/demo/instagram-demo.zip`을 UC1에 올리고, `data/demo/uc2_demo.jpg`를 UC2에 올립니다.
 - 배포: `cd frontend && npm run build` → 생긴 `frontend/dist/`를 백엔드가 같은 주소로 제공 (`uvicorn app.main:app --host 0.0.0.0 --port 8000`).
 - 진짜 GPU 연결: CPU 서버 `.env`에 `GPU_MOCK=false`, `GPU_URL=http://10.1.2.30:8080`, GPU 서버와 같은 `GPU_API_KEY`를 지정합니다. GPU 서버는 `ml/gpu_server/.env.example`을 참고해 실행하며, 모델 프로세스는 한 개만 띄웁니다.
-- 테스트 기준: 34장 전체 OCR-first 비교는 2200px에서 양성 30/32 검출, 유효 JSON 34/34, 평균 26.65초였습니다. VLM-first 6/6 표본 결과를 전체 정확도로 해석하지 않습니다. 자세한 이미지별 결과는 작업 보고서에 있습니다.
+- 테스트 기준: 실제 NCP API에서 34장 × 4개 조합을 완료했습니다. 기본 OCR-first 2200px은 양성 장면 30/32, 유효 JSON 33/34, 평균 점검 26.06초·점검+마스킹 33.16초, VLM 입력 토큰 평균 4,613, 최대 예약 VRAM 11.94 GiB였습니다. 1280px OCR-first는 28/32, 점검+마스킹 평균 33.85초, 10.93 GiB였습니다. OCR 해상도는 모두 2200px였고 결과 문자열은 조합 간 같아, 정답 전사 없이 CER/오타율은 계산하지 않았습니다. VLM-first는 전체 세트에서 더 느리고 검출 수가 낮았습니다. 마스킹 후 잔류 문자가 나온 이미지는 UI가 다운로드를 막습니다. 이미지별 보고서와 원본 사진은 Git 밖에 보관합니다.
 - 전체 API 데이터 흐름과 분리 배포는 [docs/architecture.md](docs/architecture.md), 정확한 요청·응답 형식은 [docs/api-contract.md](docs/api-contract.md)를 참고합니다.
 - 프론트 연결/API 더미 응답: [docs/api-contract.md](docs/api-contract.md), [data/demo/api/uc2-check-meta.json](data/demo/api/uc2-check-meta.json), [data/demo/api/uc2-check-response.json](data/demo/api/uc2-check-response.json). `GPU_MOCK=true`에서 기존 `/api/uc2/check`와 `/api/uc2/mask`를 그대로 호출합니다.
 
