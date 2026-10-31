@@ -1,0 +1,32 @@
+{
+  "level_now": "caution",
+  "level_if_posted": "very_high",
+  "added": ["name", "time"],
+  "warnings": [
+    {
+      "type": "name",
+      "severity": "high",
+      "why": "사진 · 캡션에 이름 \"하늘\" · 이전 게시물의 단서와 이어져요 · 사진을 가려도 캡션에 그대로 있어요",
+      "action": "이름표 가리기, 이름 해시태그 빼기",
+      "region_ids": ["r1"],
+      "in_caption": true
+    },
+    {
+      "type": "time",
+      "severity": "high",
+      "why": "캡션에 등원 시간 \"8:40\"",
+      "action": "시간 표현 빼기",
+      "region_ids": [],
+      "in_caption": false
+    }
+  ],
+  "regions": [
+    {"id": "r1", "type": "name", "text": "하늘", "box": [640, 581, 758, 642]}
+  ],
+  "caption_suggestion": "오늘도 등원 완료",
+  "caption_edits": [
+    {"id": "c1", "type": "time", "text": "8시 40분에"},
+    {"id": "c2", "type": "name", "text": "#하늘이"}
+  ],
+  "image_size": [1080, 1080]
+}

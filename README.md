@@ -50,6 +50,7 @@ cd frontend && npm install && npm run dev     # http://localhost:5173
 - 배포: `cd frontend && npm run build` → 생긴 `frontend/dist/`를 백엔드가 같은 주소로 제공 (`uvicorn app.main:app --host 0.0.0.0 --port 8000`).
 - 진짜 GPU 연결: `.env`에서 `GPU_MOCK=false`, `GPU_URL=http://<GPU 내부 IP>:<포트>`. GPU 호출은 `backend/app/services/gpu_client.py` 한 곳에서만 합니다.
 - 테스트: `cd backend && python -m pytest -q`
+- 프론트 연결/API 더미 응답: [docs/api-contract.md](docs/api-contract.md), [data/demo/api/uc2-check-meta.json](data/demo/api/uc2-check-meta.json), [data/demo/api/uc2-check-response.json](data/demo/api/uc2-check-response.json). `GPU_MOCK=true`에서 기존 `/api/uc2/check`와 `/api/uc2/mask`를 그대로 호출합니다.
 
 ## 프로젝트 구조
 ```
