@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { cancelUpload, errorMessage, fetchThumb, getStatus, uploadExport } from '../api/client'
-import { ErrorBox, Note, Panel, PixelIcon, ProgressCells, Screen, Title, TopBar } from '../components/ui'
+import { Bottom, Btn, C, Cells, ErrorNote, FilePick, Frame, Header, Heading, JUA, Notes, Panel } from '../components/wf'
 import { useApp } from '../state/AppState'
 
 const GUIDE = [
@@ -12,6 +12,12 @@ const GUIDE = [
 ]
 
 type Phase = 'idle' | 'uploading' | 'recommending' | 'thumbs'
+const PHASE_LABEL: Record<Phase, string> = {
+  idle: '올리기',
+  uploading: '올리는 중',
+  recommending: '점검할 사진 고르는 중',
+  thumbs: '사진 불러오는 중',
+}
 
 export default function Upload() {
   const nav = useNavigate()
@@ -65,47 +71,85 @@ export default function Upload() {
   }
 
   const busy = phase !== 'idle'
-  const label = { idle: '올리기', uploading: '올리는 중...', recommending: '점검할 사진 고르는 중...', thumbs: '사진 불러오는 중...' }[phase]
 
   return (
-    <Screen>
-      <TopBar title="지난 게시물 점검" back="/" step={[1, 3]} />
-      <Title sub="인스타그램 내보내기 파일을 올려 주세요. 건강검진처럼 처음 한 번만 하면 돼요.">{'지난 게시물을\n한 번에 점검해요'}</Title>
+    <Frame>
+      <Header title="지난 게시물 점검" back="/" step={[1, 3]} />
+      <Heading lines={['지난 게시물을', '한 번에 점검해요']} sub="인스타그램 내보내기 파일을 올려 주세요. 건강검진처럼 처음 한 번만 하면 돼요." />
 
-      <Panel>
-        <ol className="guide">
-          {GUIDE.map((g, i) => (
-            <li key={g}>
-              <span className="num">{i + 1}</span>
-              {g}
-            </li>
-          ))}
-        </ol>
-      </Panel>
+      <ol
+        style={{
+          margin: 0,
+          padding: '14px 16px',
+          listStyle: 'none',
+          background: C.white,
+          border: `3px solid ${C.ink}`,
+          borderRadius: 12,
+          boxShadow: `4px 4px 0 ${C.ink}`,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+          fontSize: 14,
+        }}
+      >
+        {GUIDE.map((g, i) => (
+          <li key={g} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span
+              style={{
+                flex: 'none',
+                width: 26,
+                height: 26,
+                boxSizing: 'border-box',
+                border: `2px solid ${C.ink}`,
+                background: C.peach,
+                fontFamily: JUA,
+                fontSize: 14,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {i + 1}
+            </span>
+            {g}
+          </li>
+        ))}
+      </ol>
 
-      <label className="dropzone">
-        <PixelIcon name="upload" size={32} color="var(--coral)" />
-        <strong>{file ? file.name : '압축 파일 선택'}</strong>
-        <span className="small">{file ? `${(file.size / 1024 / 1024).toFixed(1)}MB` : `.zip · ${maxMb}MB 이하`}</span>
-        <input className="sr-only" type="file" accept=".zip,application/zip" disabled={busy} onChange={(e) => pick(e.target.files?.[0])} />
-      </label>
+      <FilePick
+        title={file ? file.name : '압축 파일 선택'}
+        hint={file ? `${(file.size / 1024 / 1024).toFixed(1)}MB · 다른 파일을 고르려면 눌러 주세요` : `instagram-내보내기.zip · ${maxMb}MB 이하`}
+        accept=".zip,application/zip"
+        disabled={busy}
+        onPick={pick}
+      />
 
       {busy && (
-        <Panel>
-          <span>{label}</span>
-          <ProgressCells ratio={phase === 'uploading' ? ratio : 1} />
+        <Panel style={{ gap: 10, padding: '12px 14px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span style={{ fontFamily: JUA, fontSize: 16 }}>
+              {PHASE_LABEL[phase]}
+              <span className="blink">...</span>
+            </span>
+            {phase === 'uploading' && <span style={{ fontFamily: JUA, fontSize: 16 }}>{Math.round(ratio * 100)}%</span>}
+          </div>
+          <Cells ratio={phase === 'uploading' ? ratio : 0.9} label={PHASE_LABEL[phase]} />
         </Panel>
       )}
-      {error && <ErrorBox>{error}</ErrorBox>}
+      {error && <ErrorNote>{error}</ErrorNote>}
 
-      <Note>게시물과 사진만 꺼내고 나머지는 바로 지워요</Note>
-      <Note icon="check">점검할 사진은 다음 화면에서 최대 {maxPhotos}장 골라요</Note>
+      <Notes
+        items={[
+          ['lock', '게시물과 사진만 꺼내고 나머지는 바로 지워요'],
+          ['check', `점검할 사진은 다음 화면에서 최대 ${maxPhotos}장 골라요`],
+        ]}
+      />
 
-      <div className="bottom">
-        <button type="button" className="btn" disabled={!file || busy} onClick={submit}>
-          {label}
-        </button>
-      </div>
-    </Screen>
+      <Bottom>
+        <Btn onClick={submit} disabled={!file || busy}>
+          {busy ? `${PHASE_LABEL[phase]}...` : '올리기'}
+        </Btn>
+      </Bottom>
+    </Frame>
   )
 }

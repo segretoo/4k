@@ -87,6 +87,12 @@ export interface Warning {
   in_caption: boolean
 }
 
+export interface CaptionEdit {
+  id: string
+  type: EntityType
+  text: string
+}
+
 export interface CheckResponse {
   level_now: Level | null
   level_if_posted: Level
@@ -94,6 +100,7 @@ export interface CheckResponse {
   warnings: Warning[]
   regions: Region[]
   caption_suggestion: string
+  caption_edits: CaptionEdit[]
   image_size: [number, number]
 }
 

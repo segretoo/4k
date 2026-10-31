@@ -1,4 +1,5 @@
 import type { EntityType, Level, RegionType } from '../api/types'
+import type { PixelName } from '../components/pixels'
 
 export const LEVELS: Level[] = ['safe', 'caution', 'high', 'very_high']
 
@@ -25,3 +26,6 @@ export function formatDate(iso: string | null): string {
   const d = new Date(iso)
   return `${d.getMonth() + 1}월 ${d.getDate()}일`
 }
+
+/** 단서 종류별 픽셀 아이콘 (와이어프레임 결과 카드와 같음) */
+export const CLUE_ICON: Record<EntityType, PixelName> = { name: 'nameTag', age: 'cake', school: 'school', area: 'house', time: 'clock' }
