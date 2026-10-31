@@ -1,0 +1,91 @@
+[
+ {
+  "file": "demo_01_school_gate.jpg",
+  "caption": "첫 등원! 떨렸지만 씩씩하게 🎒 #햇살유치원 #하늘이",
+  "image_clues": [
+   {
+    "type": "school",
+    "value": "햇살유치원"
+   },
+   {
+    "type": "name",
+    "value": "하늘"
+   }
+  ]
+ },
+ {
+  "file": "demo_02_flowers.jpg",
+  "caption": "꽃구경 🌸",
+  "image_clues": []
+ },
+ {
+  "file": "demo_03_picnic.jpg",
+  "caption": "소풍 날 🍙 #해바라기반",
+  "image_clues": [
+   {
+    "type": "school",
+    "value": "햇살유치원"
+   }
+  ]
+ },
+ {
+  "file": "demo_04_playground.jpg",
+  "caption": "놀이터에서 신났다",
+  "image_clues": []
+ },
+ {
+  "file": "demo_05_bag.jpg",
+  "caption": "새 가방 생겼어요 🎒",
+  "image_clues": [
+   {
+    "type": "name",
+    "value": "하늘"
+   }
+  ]
+ },
+ {
+  "file": "demo_06_sea.jpg",
+  "caption": "바다 여행 🌊",
+  "image_clues": []
+ },
+ {
+  "file": "demo_07_street.jpg",
+  "caption": "등원길 산책 🚶 8시 40분 #망원동",
+  "image_clues": [
+   {
+    "type": "area",
+    "value": "망원로"
+   }
+  ]
+ },
+ {
+  "file": "demo_08_coffee.jpg",
+  "caption": "카페 라떼 ☕",
+  "image_clues": []
+ },
+ {
+  "file": "demo_09_cake.jpg",
+  "caption": "#하늘이 5살 생일 축하해 🎂",
+  "image_clues": [
+   {
+    "type": "name",
+    "value": "하늘"
+   }
+  ]
+ },
+ {
+  "file": "demo_10_food.jpg",
+  "caption": "주말 브런치 🥞",
+  "image_clues": []
+ },
+ {
+  "file": "demo_11_autumn.jpg",
+  "caption": "가을 소풍 🍂 #햇살유치원",
+  "image_clues": []
+ },
+ {
+  "file": "demo_12_food2.jpg",
+  "caption": "집밥 🍲",
+  "image_clues": []
+ }
+]

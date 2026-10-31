@@ -1,0 +1,227 @@
+{
+ "demo_01_school_gate.jpg": {
+  "texts": [
+   {
+    "text": "햇살유치원",
+    "box": [
+     140,
+     147,
+     526,
+     226
+    ],
+    "source": "vlm",
+    "conf": 0.93
+   },
+   {
+    "text": "하늘",
+    "box": [
+     640,
+     581,
+     758,
+     642
+    ],
+    "source": "vlm",
+    "conf": 0.93
+   }
+  ],
+  "entities": [
+   {
+    "type": "school",
+    "value": "햇살유치원",
+    "evidence": "image",
+    "box": [
+     140,
+     147,
+     526,
+     226
+    ],
+    "why": "사진 속 글자"
+   },
+   {
+    "type": "name",
+    "value": "하늘",
+    "evidence": "image",
+    "box": [
+     640,
+     581,
+     758,
+     642
+    ],
+    "why": "사진 속 글자"
+   }
+  ]
+ },
+ "demo_02_flowers.jpg": {
+  "texts": [],
+  "entities": []
+ },
+ "demo_03_picnic.jpg": {
+  "texts": [
+   {
+    "text": "햇살유치원",
+    "box": [
+     470,
+     616,
+     709,
+     666
+    ],
+    "source": "vlm",
+    "conf": 0.93
+   }
+  ],
+  "entities": [
+   {
+    "type": "school",
+    "value": "햇살유치원",
+    "evidence": "image",
+    "box": [
+     470,
+     616,
+     709,
+     666
+    ],
+    "why": "사진 속 글자"
+   }
+  ]
+ },
+ "demo_04_playground.jpg": {
+  "texts": [],
+  "entities": []
+ },
+ "demo_05_bag.jpg": {
+  "texts": [
+   {
+    "text": "하늘",
+    "box": [
+     640,
+     581,
+     758,
+     642
+    ],
+    "source": "vlm",
+    "conf": 0.93
+   }
+  ],
+  "entities": [
+   {
+    "type": "name",
+    "value": "하늘",
+    "evidence": "image",
+    "box": [
+     640,
+     581,
+     758,
+     642
+    ],
+    "why": "사진 속 글자"
+   }
+  ]
+ },
+ "demo_06_sea.jpg": {
+  "texts": [],
+  "entities": []
+ },
+ "demo_07_street.jpg": {
+  "texts": [
+   {
+    "text": "망원로",
+    "box": [
+     120,
+     223,
+     319,
+     292
+    ],
+    "source": "vlm",
+    "conf": 0.93
+   }
+  ],
+  "entities": [
+   {
+    "type": "area",
+    "value": "망원로",
+    "evidence": "image",
+    "box": [
+     120,
+     223,
+     319,
+     292
+    ],
+    "why": "사진 속 글자"
+   }
+  ]
+ },
+ "demo_08_coffee.jpg": {
+  "texts": [],
+  "entities": []
+ },
+ "demo_09_cake.jpg": {
+  "texts": [
+   {
+    "text": "하늘",
+    "box": [
+     476,
+     602,
+     605,
+     669
+    ],
+    "source": "vlm",
+    "conf": 0.93
+   }
+  ],
+  "entities": [
+   {
+    "type": "name",
+    "value": "하늘",
+    "evidence": "image",
+    "box": [
+     476,
+     602,
+     605,
+     669
+    ],
+    "why": "사진 속 글자"
+   }
+  ]
+ },
+ "demo_10_food.jpg": {
+  "texts": [],
+  "entities": []
+ },
+ "demo_11_autumn.jpg": {
+  "texts": [],
+  "entities": []
+ },
+ "demo_12_food2.jpg": {
+  "texts": [],
+  "entities": []
+ },
+ "uc2_demo.jpg": {
+  "texts": [
+   {
+    "text": "하늘",
+    "box": [
+     640,
+     581,
+     758,
+     642
+    ],
+    "source": "vlm",
+    "conf": 0.93
+   }
+  ],
+  "entities": [
+   {
+    "type": "name",
+    "value": "하늘",
+    "evidence": "image",
+    "box": [
+     640,
+     581,
+     758,
+     642
+    ],
+    "why": "사진 속 글자"
+   }
+  ]
+ }
+}
