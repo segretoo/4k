@@ -29,6 +29,8 @@ data/raw/
 data/private/
 uploads/
 outputs/
+/ml/gpu_server/artifacts/
+backend/.test-tmp/
 
 # os/editor
 .DS_Store

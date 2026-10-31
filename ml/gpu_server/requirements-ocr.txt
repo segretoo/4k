@@ -1,0 +1,5 @@
+# CPU PaddleOCR sidecar; install in a separate virtual environment.
+paddlepaddle>=3,<4
+paddleocr>=3,<4
+opencv-python-headless==5.0.0.93
+numpy>=1.26

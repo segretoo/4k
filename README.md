@@ -20,15 +20,16 @@
 | UC2 게시 전 경고 | 새 게시물을 올리면 단계가 어떻게 바뀌는지(예: 위험 → 매우 위험)와 경고 카드(이유·권장 조치) |
 | 위험 판단 | 단서는 GPU 서버의 Qwen이 프롬프트 지침으로 판단하고, 단계 표기는 표로 통일 (이름 + 장소 = 위험, + 시간 = 매우 위험) |
 | 사진·글 교차 점검 | 사진 속 글자(이름표 등)와 캡션·해시태그·위치 태그 단서를 함께 연결 |
-| 가리기 + 재검사 | 고른 영역을 OpenCV 인페인팅(NS)으로 채우고, 메타데이터(GPS) 제거 후 판독 모델로 다시 읽어 확인 |
+| 가리기 + 재검사 | 고른 글자 polygon만 주변 평균 RGB로 채우고 경계를 부드럽게 처리. 서버는 patch+alpha만 반환하고 브라우저가 원본에 합성 |
 
 ## 개발환경
 | 구분 | 사용 |
 |---|---|
 | Backend | Python 3.11, FastAPI |
-| Frontend | React + TypeScript (Vite), React Router, axios · 모바일 우선 |
+| Frontend | React + TypeScript (Vite 8, Node 20.19+ 또는 22.12+), React Router, axios · 모바일 우선 |
 | 서버 | CPU 서버: 웹 앱(화면 + FastAPI) · GPU 서버(NCP L4 24GB): 모델 앱, 내부망 전용 |
-| 판독 | VLM(Qwen-VL) 1차 → PaddleOCR 2차 → Qwen 위험 판단, 모두 GPU 서버 안에서 |
+| 판독 | PaddleOCR 3 / PP-OCRv5 2200px → Qwen3.5-4B BF16 위험 단서 검토 → OpenCV 5 평균색 채움 + sigma 8 블렌딩 |
+| 요청 처리 | CPU API가 사진을 EXIF 보정·긴 변 2200px로 정규화. GPU 추론은 인스턴스 1개가 순차 처리하고 대기열 상한 초과는 429 |
 | 협업 | GitHub Issue/PR, Discord |
 
 ## 배포 & 실행
@@ -48,8 +49,9 @@ cd frontend && npm install && npm run dev     # http://localhost:5173
 
 - 시연: `data/demo/instagram-demo.zip`을 UC1에 올리고, `data/demo/uc2_demo.jpg`를 UC2에 올립니다.
 - 배포: `cd frontend && npm run build` → 생긴 `frontend/dist/`를 백엔드가 같은 주소로 제공 (`uvicorn app.main:app --host 0.0.0.0 --port 8000`).
-- 진짜 GPU 연결: `.env`에서 `GPU_MOCK=false`, `GPU_URL=http://<GPU 내부 IP>:<포트>`. GPU 호출은 `backend/app/services/gpu_client.py` 한 곳에서만 합니다.
-- 테스트: `cd backend && python -m pytest -q`
+- 진짜 GPU 연결: CPU 서버 `.env`에 `GPU_MOCK=false`, `GPU_URL=http://10.1.2.30:8080`, GPU 서버와 같은 `GPU_API_KEY`를 지정합니다. GPU 서버는 `ml/gpu_server/.env.example`을 참고해 실행하며, 모델 프로세스는 한 개만 띄웁니다.
+- 테스트 기준: 34장 전체 OCR-first 비교는 2200px에서 양성 30/32 검출, 유효 JSON 34/34, 평균 26.65초였습니다. VLM-first 6/6 표본 결과를 전체 정확도로 해석하지 않습니다. 자세한 이미지별 결과는 작업 보고서에 있습니다.
+- 전체 API 데이터 흐름과 분리 배포는 [docs/architecture.md](docs/architecture.md), 정확한 요청·응답 형식은 [docs/api-contract.md](docs/api-contract.md)를 참고합니다.
 - 프론트 연결/API 더미 응답: [docs/api-contract.md](docs/api-contract.md), [data/demo/api/uc2-check-meta.json](data/demo/api/uc2-check-meta.json), [data/demo/api/uc2-check-response.json](data/demo/api/uc2-check-response.json). `GPU_MOCK=true`에서 기존 `/api/uc2/check`와 `/api/uc2/mask`를 그대로 호출합니다.
 
 ## 프로젝트 구조
