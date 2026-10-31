@@ -51,11 +51,12 @@ class HttpGpu:
         return [ScreenResult(**r) for r in data.get("results", [])]
 
     async def analyze(self, image: bytes, meta: dict) -> AnalyzeResult:
+        gpu_meta = {key: value for key, value in meta.items() if key != "owner_id"}
         data = await self._post(
             "/gpu/v1/analyze",
             owner_id=meta.get("owner_id", ""),
             files={"file": ("photo.jpg", image, "image/jpeg")},
-            data={"meta": json.dumps(meta, ensure_ascii=False)},
+            data={"meta": json.dumps(gpu_meta, ensure_ascii=False)},
         )
         entities = data.setdefault("entities", [])
         known = {(item.get("type"), item.get("value"), item.get("evidence")) for item in entities}
