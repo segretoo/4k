@@ -11,7 +11,7 @@ from app.schemas.contracts import CheckMeta, CheckResponse, MaskMeta, MaskRespon
 from app.services import precheck
 from app.services.gpu_client import GpuError, get_gpu
 
-router = APIRouter(prefix="/api/uc2", tags=["UC2 올리기 전 점검"])
+router = APIRouter(prefix="/api/uc2", tags=["UC2 올리기 전 체크"])
 
 
 async def _read_image(file: UploadFile) -> tuple[bytes, tuple[int, int]]:

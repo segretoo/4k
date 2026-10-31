@@ -30,7 +30,7 @@ export default function Analyze() {
 
   return (
     <Frame>
-      <Header title="지난 게시물 점검" back="/uc1/select" step={[3, 3]} />
+      <Header title="게시물 건강검진" back="/uc1/select" step={[3, 3]} />
       <Heading
         lines={finished ? ['점검이', '끝났어요'] : ['사진을', '점검하고 있어요']}
         sub={finished ? '결과를 확인해 보세요. 올린 파일은 이미 지웠어요.' : '화면을 열어 둔 채 잠시 기다려 주세요. 사진은 한 장씩 차례로 읽어요.'}
