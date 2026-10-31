@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { Btn, C, GOWUN, JUA, Px } from '../components/wf'
 
@@ -26,7 +26,25 @@ const CLOUDS: CSSProperties[] = [
 
 const lineIcon = { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: C.sub, strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true } as const
 
+/** 그림 영역(350×390) 배율: 폭이 좁으면 맞추고, 화면이 낮으면 줄여서 첫 화면에 버튼까지 보이게 */
+function useHeroScale() {
+  const calc = () => {
+    const w = Math.min(window.innerWidth, 390) - 40
+    const byWidth = Math.min(1, w / 350)
+    const byHeight = window.innerHeight < 900 ? 0.72 : 0.85
+    return Math.min(byWidth, byHeight)
+  }
+  const [s, setS] = useState(calc)
+  useEffect(() => {
+    const on = () => setS(calc())
+    window.addEventListener('resize', on)
+    return () => window.removeEventListener('resize', on)
+  }, [])
+  return s
+}
+
 export default function Landing() {
+  const s = useHeroScale()
   return (
     <main
       style={{
@@ -35,12 +53,12 @@ export default function Landing() {
         minHeight: '100dvh',
         margin: '0 auto',
         boxSizing: 'border-box',
-        padding: '22px 20px 28px',
+        padding: '18px 20px 24px',
         background: C.bg,
         color: C.ink,
         display: 'flex',
         flexDirection: 'column',
-        gap: 22,
+        gap: 16,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -49,7 +67,7 @@ export default function Landing() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <h1 style={{ margin: 0, fontFamily: JUA, fontWeight: 400, fontSize: 32, lineHeight: 1.3 }}>
+        <h1 style={{ margin: 0, fontFamily: JUA, fontWeight: 400, fontSize: 30, lineHeight: 1.25 }}>
           꼭꼭 숨어라,
           <br />
           이름표 보일라
@@ -59,7 +77,8 @@ export default function Landing() {
         </p>
       </div>
 
-      <div style={{ position: 'relative', width: 350, maxWidth: '100%', height: 390, flex: 'none', alignSelf: 'center' }}>
+      <div style={{ width: 350 * s, height: 390 * s, flex: 'none', alignSelf: 'center' }}>
+      <div style={{ position: 'relative', width: 350, height: 390, transform: `scale(${s})`, transformOrigin: 'top left' }}>
         <div style={{ position: 'absolute', inset: 0, background: C.pink, clipPath: PIXEL_CORNER }} />
 
         <div
@@ -123,19 +142,20 @@ export default function Landing() {
           {NAME}
         </span>
       </div>
+      </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <Btn to="/consent?next=uc1" style={{ height: 'auto', flexDirection: 'column', alignItems: 'flex-start', gap: 4, padding: '16px 20px' }}>
-          <span style={{ fontSize: 19 }}>지난 게시물 한 번 점검하기</span>
-          <span style={{ fontFamily: GOWUN, fontSize: 13 }}>인스타그램 '내 정보 내보내기' 파일로 · 한 번만 해 두면 돼요</span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <Btn to="/consent?next=uc1" style={{ height: 'auto', flexDirection: 'column', alignItems: 'flex-start', gap: 4, padding: '14px 20px' }}>
+          <span style={{ fontSize: 19 }}>게시물 건강검진</span>
+          <span style={{ fontFamily: GOWUN, fontSize: 13 }}>지난 게시물을 한 번에 점검해요 · 내보내기 파일로 한 번만</span>
         </Btn>
         <Btn
           to="/consent?next=uc2"
           kind="plain"
-          style={{ height: 'auto', flexDirection: 'column', alignItems: 'flex-start', gap: 4, padding: '16px 20px' }}
+          style={{ height: 'auto', flexDirection: 'column', alignItems: 'flex-start', gap: 4, padding: '14px 20px' }}
         >
-          <span style={{ fontSize: 19, color: C.coral }}>올리기 전에 확인하기</span>
-          <span style={{ fontFamily: GOWUN, fontSize: 13, color: C.sub }}>새 사진과 캡션을 미리 진단해요</span>
+          <span style={{ fontSize: 19, color: C.coral }}>올리기 전 체크</span>
+          <span style={{ fontFamily: GOWUN, fontSize: 13, color: C.sub }}>새 사진과 캡션을 미리 확인해요</span>
         </Btn>
       </div>
 

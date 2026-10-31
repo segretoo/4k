@@ -32,7 +32,7 @@ export default function Cleanup() {
 
   return (
     <Frame gap={12}>
-      <Header title="지난 게시물 점검" back="/uc1/result" step={[3, 3]} />
+      <Header title="게시물 건강검진" back="/uc1/result" step={[3, 3]} />
       <Heading lines={[`${r.analyzed_posts}개 중 ${r.cleanup.length}개만`, '정리하면 돼요']} sub="위험한 조합을 끊는 게시물만 골랐어요." size={25} gap={6} />
 
       <Panel style={{ gap: 10, padding: '12px 14px' }}>

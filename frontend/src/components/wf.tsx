@@ -189,8 +189,19 @@ export function Btn({ children, kind = 'primary', to, href, download, onClick, d
 }
 
 /** 화면 맨 아래 버튼 묶음 (margin-top: auto 로 바닥에 붙음) */
-export function Bottom({ children, gap = 8, style }: { children: ReactNode; gap?: number; style?: CSSProperties }) {
-  return <div style={{ ...col, gap, marginTop: 'auto', marginBottom: 5, ...style }}>{children}</div>
+export function Bottom({ children, gap = 8, style, sticky }: { children: ReactNode; gap?: number; style?: CSSProperties; sticky?: boolean }) {
+  // sticky: 목록이 길어도 버튼이 화면 아래에 붙어 있음 (스크롤 없이 바로 누를 수 있게)
+  const stick: CSSProperties = sticky
+    ? {
+        position: 'sticky',
+        bottom: 0,
+        zIndex: 5,
+        margin: '0 -20px -24px',
+        padding: '16px 20px calc(16px + env(safe-area-inset-bottom))',
+        background: `linear-gradient(to bottom, rgba(255,244,238,0), ${C.bg} 22%)`,
+      }
+    : { marginBottom: 5 }
+  return <div style={{ ...col, gap, marginTop: 'auto', ...stick, ...style }}>{children}</div>
 }
 
 // ---------- 안내 줄 ----------
