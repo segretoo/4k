@@ -24,9 +24,18 @@ def main():
     with sync_playwright() as pw:
         browser = pw.chromium.launch(executable_path=str(args.browser), headless=True)
         page = browser.new_page(viewport={"width": 450, "height": 950}, accept_downloads=True)
+        page.set_default_timeout(180_000)  # live GPU inference can exceed Playwright's 30s default
         errors = []
+        api_events = []
         page.on("pageerror", lambda error: errors.append(str(error)))
+        page.on("requestfailed", lambda request: api_events.append(
+            {"url": request.url, "failure": request.failure} if "/api/" in request.url else None))
+        page.on("response", lambda response: api_events.append(
+            {"url": response.url, "status": response.status} if "/api/" in response.url else None))
         page.goto(args.url + "/uc2")
+        status_response = page.request.get(args.url.rstrip("/") + "/api/status")
+        status_response.raise_for_status()
+        api_status = status_response.json()
         for checkbox in page.get_by_role("checkbox").all():
             checkbox.check()
         page.get_by_role("button", name="동의하고 시작하기", exact=True).click()
@@ -60,7 +69,9 @@ def main():
         result = {"check_http": 200, "mask_http": 200, "region_count": len(checked["regions"]),
                   "fragment_count": len(payload["fragments"]), "download_size": list(actual.size),
                   "mean_pixel_error_after_jpeg": round(float(difference.mean()), 4),
-                  "browser_errors": errors, "mode": "GPU_MOCK with synthetic fixture"}
+                  "browser_errors": errors, "api_events": [event for event in api_events if event is not None],
+                  "gpu_mock": api_status.get("gpu_mock"), "gpu_ok": api_status.get("gpu_ok"),
+                  "mode": "synthetic fixture; " + ("mock GPU" if api_status.get("gpu_mock") else "real GPU")}
         (args.out / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
         print(json.dumps(result, ensure_ascii=False))
         browser.close()
