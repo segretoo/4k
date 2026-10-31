@@ -3,11 +3,13 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-EntityType = Literal["name", "age", "school", "area", "time"]
+EntityType = Literal["name", "age", "school", "area", "time", "contact"]
 Evidence = Literal["image", "caption"]
 Level = Literal["safe", "caution", "high", "very_high"]
 Severity = Literal["high", "medium", "check"]
 Box = list[int]  # [x1, y1, x2, y2], 방향 보정한 원본 픽셀 기준
+Point = list[int]  # [x, y], 방향 보정한 원본 픽셀 기준
+Polygon = list[Point]
 
 LEVEL_ORDER: list[Level] = ["safe", "caution", "high", "very_high"]
 PLACE: set[str] = {"school", "area"}
@@ -29,6 +31,8 @@ def risk_level(types: set[str]) -> Level:
 class TextItem(BaseModel):
     text: str
     box: Optional[Box] = None
+    polygon: Optional[Polygon] = None
+    path: Optional[str] = None
     source: Literal["vlm", "ocr", "caption"] = "vlm"
     conf: Optional[float] = None
 
@@ -38,6 +42,8 @@ class Entity(BaseModel):
     value: str
     evidence: Evidence
     box: Optional[Box] = None
+    polygon: Optional[Polygon] = None
+    path: Optional[str] = None
     why: str = ""
 
 
@@ -59,6 +65,8 @@ class AnalyzeResult(BaseModel):
     entities: list[Entity] = []
     risk: Optional[Risk] = None
     elapsed_ms: int = 0
+    requires_review: bool = False
+    review_reasons: list[str] = []
 
 
 class ScreenResult(BaseModel):
@@ -145,6 +153,8 @@ class Region(BaseModel):
     type: EntityType | Literal["unreadable"]
     text: str
     box: Box
+    polygon: Optional[Polygon] = None
+    path: Optional[str] = None
 
 
 class Warning(BaseModel):
@@ -172,15 +182,41 @@ class CheckResponse(BaseModel):
     caption_suggestion: str = ""
     caption_edits: list[CaptionEdit] = []
     image_size: list[int]
+    requires_review: bool = False
+    review_reasons: list[str] = []
+
+
+class MaskRegion(BaseModel):
+    id: str
+    box: Box
+    polygon: Optional[Polygon] = None
+    text: str = ""
+    type: Optional[EntityType | Literal["unreadable"]] = None
 
 
 class MaskMeta(BaseModel):
-    boxes: list[Box] = Field(min_length=1)
+    regions: list[MaskRegion] = []
+    boxes: list[Box] = []
+    polygons: list[Polygon] = []
+    region_ids: list[str] = []
     targets: list[str] = []
+
+    def model_post_init(self, __context) -> None:
+        if not self.regions and not self.boxes and not self.polygons:
+            raise ValueError("regions, boxes, or polygons must contain at least one region")
+
+
+class MaskFragment(BaseModel):
+    region_id: str
+    crop_box_original_pixels: Box
+    patch_base64: str
+    alpha_base64: str
+    media_type: Literal["image/png"] = "image/png"
 
 
 class MaskResponse(BaseModel):
-    image_base64: str
+    fragments: list[MaskFragment] = []
     rescan_passed: bool
     leaked: list[str] = []
     meta_clean: bool
+    requires_review: bool = False

@@ -1,7 +1,8 @@
 // backend/app/schemas/contracts.py 와 같은 이름을 쓴다. 계약을 바꾸면 양쪽을 같이 고친다.
-export type EntityType = 'name' | 'age' | 'school' | 'area' | 'time'
+export type EntityType = 'name' | 'age' | 'school' | 'area' | 'time' | 'contact'
 export type Level = 'safe' | 'caution' | 'high' | 'very_high'
 export type Box = [number, number, number, number]
+export type Polygon = [number, number][]
 
 export interface Clue {
   type: EntityType
@@ -76,6 +77,8 @@ export interface Region {
   type: RegionType
   text: string
   box: Box
+  polygon?: Polygon | null
+  path?: string | null
 }
 
 export interface Warning {
@@ -102,13 +105,24 @@ export interface CheckResponse {
   caption_suggestion: string
   caption_edits: CaptionEdit[]
   image_size: [number, number]
+  requires_review: boolean
+  review_reasons: string[]
+}
+
+export interface MaskFragment {
+  region_id: string
+  crop_box_original_pixels: Box
+  patch_base64: string
+  alpha_base64: string
+  media_type: 'image/png'
 }
 
 export interface MaskResponse {
-  image_base64: string
+  fragments: MaskFragment[]
   rescan_passed: boolean
   leaked: string[]
   meta_clean: boolean
+  requires_review: boolean
 }
 
 export interface ServerStatus {

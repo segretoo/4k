@@ -7,7 +7,7 @@ import type {
   MaskResponse,
   ServerStatus,
   UploadResponse,
-  Box,
+  Region,
 } from './types'
 
 // 같은 주소에서 백엔드가 화면을 제공하므로 상대 경로. 개발 중에는 vite.config.ts 프록시가 넘겨 준다.
@@ -61,9 +61,9 @@ export async function checkDraft(file: File, caption: string, priorClues: Clue[]
   return (await http.post<CheckResponse>('/api/uc2/check', form)).data
 }
 
-export async function maskPhoto(file: File, boxes: Box[], targets: string[]): Promise<MaskResponse> {
+export async function maskPhoto(file: File, regions: Region[]): Promise<MaskResponse> {
   const form = new FormData()
   form.append('file', file)
-  form.append('meta', JSON.stringify({ boxes, targets }))
+  form.append('meta', JSON.stringify({ regions }))
   return (await http.post<MaskResponse>('/api/uc2/mask', form)).data
 }

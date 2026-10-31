@@ -22,6 +22,66 @@ function download(dataUrl: string) {
   a.click()
 }
 
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('사진 조각을 불러오지 못했어요.'))
+    image.src = src
+  })
+}
+
+/** 서버가 돌려준 작은 조각만 원본에 합성한다. 좌표는 검사 시 서버가 돌려준 크기 기준이다. */
+async function composeFragments(
+  file: File,
+  fragments: MaskResponse['fragments'],
+  checkedSize: [number, number],
+): Promise<string> {
+  if (fragments.length === 0) throw new Error('서버에서 마스킹 조각을 받지 못했어요.')
+  const originalUrl = URL.createObjectURL(file)
+  try {
+    const original = await loadImage(originalUrl)
+    const canvas = document.createElement('canvas')
+    canvas.width = original.naturalWidth
+    canvas.height = original.naturalHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('사진을 합성할 수 없어요.')
+    ctx.drawImage(original, 0, 0)
+
+    const sx = canvas.width / checkedSize[0]
+    const sy = canvas.height / checkedSize[1]
+    for (const fragment of fragments) {
+      const patchUrl = `data:${fragment.media_type};base64,${fragment.patch_base64}`
+      const alphaUrl = `data:image/png;base64,${fragment.alpha_base64}`
+      const [left, top, right, bottom] = fragment.crop_box_original_pixels
+      const dx = Math.round(left * sx)
+      const dy = Math.round(top * sy)
+      const dw = Math.max(1, Math.round((right - left) * sx))
+      const dh = Math.max(1, Math.round((bottom - top) * sy))
+      const [patch, alpha] = await Promise.all([loadImage(patchUrl), loadImage(alphaUrl)])
+      const piece = document.createElement('canvas')
+      piece.width = dw
+      piece.height = dh
+      const pieceCtx = piece.getContext('2d')
+      if (!pieceCtx) throw new Error('마스킹 조각을 합성할 수 없어요.')
+      // alpha_base64 is a grayscale PNG, not a PNG with an alpha channel.
+      // Turn its luminance into opacity before applying it to the colour layer.
+      pieceCtx.drawImage(alpha, 0, 0, dw, dh)
+      const opacity = pieceCtx.getImageData(0, 0, dw, dh)
+      for (let index = 0; index < opacity.data.length; index += 4) {
+        opacity.data[index + 3] = opacity.data[index]
+      }
+      pieceCtx.putImageData(opacity, 0, 0)
+      pieceCtx.globalCompositeOperation = 'source-in'
+      pieceCtx.drawImage(patch, 0, 0, dw, dh)
+      ctx.drawImage(piece, dx, dy)
+    }
+    return canvas.toDataURL('image/jpeg', 0.94)
+  } finally {
+    URL.revokeObjectURL(originalUrl)
+  }
+}
+
 export default function Mask() {
   const { uc2 } = useApp()
   const c = uc2.check
@@ -32,6 +92,8 @@ export default function Mask() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [masked, setMasked] = useState<MaskResponse | null>(null)
+  const [maskedUrl, setMaskedUrl] = useState<string | null>(null)
+  const [manualConfirmed, setManualConfirmed] = useState(false)
   const [copied, setCopied] = useState(false)
 
   if (!c || !uc2.file || !uc2.previewUrl) return <Navigate to="/uc2" replace />
@@ -61,6 +123,8 @@ export default function Mask() {
     else next.add(id)
     setOn(next)
     setMasked(null) // 고른 곳이 바뀌면 다시 가려야 함
+    setMaskedUrl(null)
+    setManualConfirmed(false)
     setCopied(false)
   }
 
@@ -68,9 +132,12 @@ export default function Mask() {
     setBusy(true)
     setError(null)
     try {
-      const res = await maskPhoto(uc2.file!, chosen.map((r) => r.box), chosen.map((r) => r.text))
+      const res = await maskPhoto(uc2.file!, chosen)
+      const composite = await composeFragments(uc2.file!, res.fragments, c.image_size)
       setMasked(res)
-      download(`data:image/jpeg;base64,${res.image_base64}`)
+      setMaskedUrl(composite)
+      setManualConfirmed(false)
+      if (res.rescan_passed && !res.requires_review) download(composite)
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -87,7 +154,10 @@ export default function Mask() {
     }
   }
 
-  const maskedUrl = masked ? `data:image/jpeg;base64,${masked.image_base64}` : null
+  const canDownload = Boolean(
+    masked && masked.leaked.length === 0 &&
+      ((masked.rescan_passed && !masked.requires_review) || (masked.requires_review && manualConfirmed)),
+  )
 
   return (
     <Frame gap={12}>
@@ -102,7 +172,7 @@ export default function Mask() {
           regions={c.regions}
           mode="mask"
           activeIds={on}
-          caption="미리보기 · 주변 배경으로 자연스럽게 채워요 (서버 밖으로 안 나가요)"
+          caption="미리보기 · 선택한 단서만 주변 배경색으로 가려요"
         />
       )}
 
@@ -164,17 +234,24 @@ export default function Mask() {
             flexDirection: 'column',
             gap: 4,
             padding: '10px 12px',
-            background: masked.rescan_passed ? '#E5F4EC' : '#FDE8E4',
+            background: canDownload ? '#E5F4EC' : '#FDE8E4',
             border: `3px solid ${C.ink}`,
             borderRadius: 12,
             fontSize: 13,
           }}
         >
-          <span style={{ fontFamily: JUA, fontSize: 15 }}>{masked.rescan_passed ? '재검사 통과' : '재검사에서 글자가 다시 읽혔어요'}</span>
-          {masked.rescan_passed ? (
+          <span style={{ fontFamily: JUA, fontSize: 15 }}>{masked.leaked.length ? '재검사에서 글자가 다시 읽혔어요' : masked.requires_review ? '자동 확인이 어려운 위치가 있어요' : '재검사 통과'}</span>
+          {masked.leaked.length ? (
+            <span>다시 읽힌 글자: {masked.leaked.join(', ')} · 영역을 바꿔 다시 검사해 주세요.</span>
+          ) : masked.requires_review ? (
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <input type="checkbox" checked={manualConfirmed} onChange={(event) => setManualConfirmed(event.target.checked)} />
+              <span>사진에서 선택한 위치를 직접 확인했고, 이 상태로 저장하겠습니다.</span>
+            </label>
+          ) : masked.rescan_passed ? (
             <span>✓ 가린 사진을 다시 읽어 봤어요. 가린 글자가 읽히지 않아요.</span>
           ) : (
-            <span>다시 읽힌 글자: {masked.leaked.join(', ')} · 가릴 곳을 더 켜고 다시 저장해 주세요.</span>
+            <span>읽을 글자가 확인되지 않아 자동으로 통과를 확인할 수 없어요.</span>
           )}
           {masked.meta_clean && <span>✓ 사진 속 위치 정보(GPS)도 함께 지웠어요.</span>}
         </div>
@@ -182,9 +259,13 @@ export default function Mask() {
       {error && <ErrorNote>{error}</ErrorNote>}
 
       <Bottom>
-        {masked ? (
-          <Btn kind="plain" onClick={() => download(maskedUrl!)}>
+        {canDownload ? (
+          <Btn kind="plain" onClick={() => maskedUrl && download(maskedUrl)}>
             저장 완료 · 다시 받기
+          </Btn>
+        ) : masked ? (
+          <Btn kind="plain" disabled>
+            {masked.leaked.length ? '영역을 바꿔 다시 검사해 주세요' : '직접 확인 후 체크해 주세요'}
           </Btn>
         ) : (
           <Btn onClick={save} disabled={busy || chosen.length === 0}>

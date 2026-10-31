@@ -21,12 +21,14 @@
     }
   ],
   "regions": [
-    {"id": "r1", "type": "name", "text": "하늘", "box": [640, 581, 758, 642]}
+    {"id": "r1", "type": "name", "text": "하늘", "box": [640, 581, 758, 642], "polygon": [[640,581],[758,581],[758,642],[640,642]], "path": "M 640 581 L 758 581 L 758 642 L 640 642 Z"}
   ],
   "caption_suggestion": "오늘도 등원 완료",
   "caption_edits": [
     {"id": "c1", "type": "time", "text": "8시 40분에"},
     {"id": "c2", "type": "name", "text": "#하늘이"}
   ],
-  "image_size": [1080, 1080]
+  "image_size": [1080, 1080],
+  "requires_review": false,
+  "review_reasons": []
 }

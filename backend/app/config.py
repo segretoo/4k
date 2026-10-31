@@ -15,7 +15,8 @@ def _bool(name: str, default: bool) -> bool:
 @dataclass(frozen=True)
 class Settings:
     # GPU 모델 앱 주소 (내부 IP). GPU_MOCK=true면 호출하지 않고 가짜 응답을 쓴다.
-    gpu_url: str = os.getenv("GPU_URL", "http://10.0.0.2:8001")
+    gpu_url: str = os.getenv("GPU_URL", "http://10.1.2.30:8080")
+    gpu_api_key: str = os.getenv("GPU_API_KEY", "")
     gpu_mock: bool = _bool("GPU_MOCK", True)
     gpu_timeout_s: float = float(os.getenv("GPU_TIMEOUT_S", "120"))
     mock_delay_s: float = float(os.getenv("MOCK_DELAY_S", "0.6"))
@@ -35,7 +36,8 @@ class Settings:
     max_unzipped_mb: int = int(os.getenv("MAX_UNZIPPED_MB", "1500"))
     max_zip_files: int = int(os.getenv("MAX_ZIP_FILES", "5000"))
     max_photo_mb: int = int(os.getenv("MAX_PHOTO_MB", "20"))
-    max_image_side: int = int(os.getenv("MAX_IMAGE_SIDE", "2048"))
+    max_image_side: int = int(os.getenv("MAX_IMAGE_SIDE", "2200"))
+    max_image_pixels: int = int(os.getenv("MAX_IMAGE_PIXELS", "40000000"))
     thumb_side: int = int(os.getenv("THUMB_SIDE", "320"))
 
     # React 빌드 결과 위치 (있으면 같은 주소로 화면을 제공)
