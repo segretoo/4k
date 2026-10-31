@@ -1,5 +1,7 @@
 """UC2 올리기 전 점검: GPU 판독 결과를 경고 카드와 가릴 영역으로 바꾼다."""
-from app.schemas.contracts import AnalyzeResult, CheckResponse, Clue, Region, Warning, risk_level
+import re
+
+from app.schemas.contracts import AnalyzeResult, CaptionEdit, CheckResponse, Clue, Region, Warning, risk_level
 from app.services.engine import TYPE_LABEL, TYPE_ORDER
 from app.services.text_rules import TIME_RE
 
@@ -70,15 +72,8 @@ def build(result: AnalyzeResult, caption: str, prior: list[Clue], image_size: tu
             )
         )
 
-    suggestion = caption
-    for e in result.entities:
-        if e.evidence != "caption" or not e.value:
-            continue
-        if e.type == "time":
-            suggestion = TIME_RE.sub("", suggestion)
-        else:
-            suggestion = suggestion.replace(f"#{e.value}이", "").replace(f"#{e.value}", "").replace(e.value, "")
-    suggestion = " ".join(suggestion.replace(" 에 ", " ").split())
+    edits = caption_edits(result, caption)
+    suggestion = apply_edits(caption, [e.text for e in edits])
 
     return CheckResponse(
         level_now=risk_level(prior_types) if prior else None,
@@ -87,5 +82,38 @@ def build(result: AnalyzeResult, caption: str, prior: list[Clue], image_size: tu
         warnings=warnings,
         regions=regions,
         caption_suggestion=suggestion,
+        caption_edits=edits,
         image_size=list(image_size),
     )
+
+
+def caption_edits(result: AnalyzeResult, caption: str) -> list[CaptionEdit]:
+    """캡션 속 단서를 '빼기' 조각으로 나눈다. 사진 속 단서가 캡션에도 그대로 있으면 함께 뺀다."""
+    found: list[tuple[str, str]] = []
+    for e in result.entities:
+        if not e.value:
+            continue
+        if e.type == "time" and e.evidence == "caption":
+            m = TIME_RE.search(caption)
+            if m:
+                end = m.end()
+                if caption[end:end + 1] == "에":  # "8시 40분에" 처럼 조사까지
+                    end += 1
+                found.append((e.type, caption[m.start():end].strip()))
+            continue
+        for cand in (f"#{e.value}이", f"#{e.value}", e.value):
+            if cand in caption:
+                found.append((e.type, cand))
+                break
+    out: list[CaptionEdit] = []
+    for t, text in dict.fromkeys(found):
+        if any(text in o.text for o in out):  # 이미 더 긴 조각에 들어 있음
+            continue
+        out.append(CaptionEdit(id=f"c{len(out) + 1}", type=t, text=text))
+    return out
+
+
+def apply_edits(caption: str, texts: list[str]) -> str:
+    for t in sorted(texts, key=len, reverse=True):
+        caption = caption.replace(t, " ")
+    return re.sub(r"\s+", " ", caption).strip()
