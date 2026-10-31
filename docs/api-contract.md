@@ -95,3 +95,7 @@ The browser scales each crop box from `CheckResponse.image_size` to the locally 
 Set `GPU_MOCK=true` (default) and run the CPU API. UC2 uses the synthetic image fingerprint in `data/demo/mock_gpu.json`; it returns deterministic fake model data without loading a VLM or OCR model. The same `/api/uc2/check` and `/api/uc2/mask` routes exercise the fragment response contract. `GET /api/status` reports `gpu_mock: true` to distinguish demo output from real model results.
 
 Interactive OpenAPI docs are served at `/docs` by FastAPI.
+
+## Evaluation diagnostics
+
+`/api/uc2/check` additionally returns `ocr_texts` (OCR text, confidence, pixel geometry) and `pipeline_metrics` (model, order, input edges, token count, step timings, peak GPU allocated/reserved bytes, JSON validity). These are measured by the real GPU service, not invented by the CPU API. Mock mode returns an empty diagnostics object. The browser does not need these fields to render the current UI.

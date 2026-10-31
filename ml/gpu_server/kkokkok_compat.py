@@ -136,6 +136,10 @@ def _to_front_contract(result: dict[str, Any], photo_id: str) -> dict[str, Any]:
         "elapsed_ms": int(float(result.get("timing_seconds", 0)) * 1000),
         "requires_review": bool(result.get("requires_review", False) or review_reasons),
         "review_reasons": review_reasons,
+        "pipeline_metrics": {key: result.get(key) for key in (
+            "model", "pipeline_order", "input_edges", "vlm_input_token_count",
+            "timing_seconds", "timing_breakdown_seconds", "gpu_peak_allocated_bytes",
+            "gpu_peak_reserved_bytes", "json_valid")},
     }
 
 
@@ -250,8 +254,8 @@ async def mask(
             boxes = data.get("boxes", [])
             regions = [{"id": f"r{i + 1}", "box": b, "text": ""}
                        for i, b in enumerate(boxes)]
-        if not isinstance(regions, list) or not 1 <= len(regions) <= 64 or any(not isinstance(r, dict) for r in regions):
-            raise ValueError("1 to 64 regions are required")
+        if not isinstance(regions, list) or not 1 <= len(regions) <= 256 or any(not isinstance(r, dict) for r in regions):
+            raise ValueError("1 to 256 regions are required")
         raw_targets = data.get("targets") or [region.get("text", "") for region in regions]
         targets = [str(value).strip() for value in raw_targets
                    if str(value).strip() not in {"", "읽을 수 없는 글자"}]

@@ -89,6 +89,8 @@ def build(result: AnalyzeResult, caption: str, prior: list[Clue], image_size: tu
         image_size=list(image_size),
         requires_review=result.requires_review,
         review_reasons=result.review_reasons,
+        ocr_texts=[text for text in result.texts if text.source == "ocr"],
+        pipeline_metrics=result.pipeline_metrics,
     )
 
 

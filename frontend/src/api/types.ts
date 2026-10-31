@@ -107,6 +107,8 @@ export interface CheckResponse {
   image_size: [number, number]
   requires_review: boolean
   review_reasons: string[]
+  ocr_texts?: { text: string; box?: Box | null; polygon?: Polygon | null; path?: string | null; source: 'ocr' | 'vlm' | 'caption'; conf?: number | null }[]
+  pipeline_metrics?: Record<string, unknown>
 }
 
 export interface MaskFragment {

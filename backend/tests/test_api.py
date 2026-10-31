@@ -138,7 +138,8 @@ def test_check_resizes_before_gpu_and_propagates_review(monkeypatch):
             with Image.open(io.BytesIO(image)) as im:
                 assert im.size == (2200, 100)
                 assert not im.getexif()
-            return AnalyzeResult(photo_id="test", requires_review=True, review_reasons=["empty"])
+            return AnalyzeResult(photo_id="test", requires_review=True, review_reasons=["empty"],
+                                 pipeline_metrics={"model": "test-model", "gpu_peak_allocated_bytes": 1234})
 
     monkeypatch.setattr(uc2, "get_gpu", lambda: Gpu())
     with client() as c:
@@ -146,3 +147,6 @@ def test_check_resizes_before_gpu_and_propagates_review(monkeypatch):
         assert result.status_code == 200
         assert result.json()["image_size"] == [2200, 100]
         assert result.json()["requires_review"] is True
+        assert result.json()["pipeline_metrics"]["model"] == "test-model"
+        assert result.json()["pipeline_metrics"]["gpu_peak_allocated_bytes"] == 1234
+        assert result.json()["ocr_texts"] == []

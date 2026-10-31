@@ -6,6 +6,7 @@ pillow>=10
 numpy>=1.26
 opencv-python-headless==5.0.0.93
 requests>=2.31
+httpx>=0.27
 transformers>=5.10,<6
 accelerate>=1
 # Torch must match the server CUDA stack. Default model mode is BF16.

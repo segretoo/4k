@@ -67,6 +67,7 @@ class AnalyzeResult(BaseModel):
     elapsed_ms: int = 0
     requires_review: bool = False
     review_reasons: list[str] = []
+    pipeline_metrics: dict = Field(default_factory=dict)
 
 
 class ScreenResult(BaseModel):
@@ -184,6 +185,8 @@ class CheckResponse(BaseModel):
     image_size: list[int]
     requires_review: bool = False
     review_reasons: list[str] = []
+    ocr_texts: list[TextItem] = Field(default_factory=list)
+    pipeline_metrics: dict = Field(default_factory=dict)
 
 
 class MaskRegion(BaseModel):
@@ -195,9 +198,9 @@ class MaskRegion(BaseModel):
 
 
 class MaskMeta(BaseModel):
-    regions: list[MaskRegion] = []
-    boxes: list[Box] = []
-    polygons: list[Polygon] = []
+    regions: list[MaskRegion] = Field(default_factory=list, max_length=256)
+    boxes: list[Box] = Field(default_factory=list, max_length=256)
+    polygons: list[Polygon] = Field(default_factory=list, max_length=256)
     region_ids: list[str] = []
     targets: list[str] = []
 

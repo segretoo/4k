@@ -95,3 +95,24 @@ def test_caption_clues_have_no_image_geometry(adapter):
         {"type": "name", "value": "하늘", "why": "게시글 이름"}]}, "p1")
     assert response["entities"] == [{"type": "name", "value": "하늘", "evidence": "caption", "why": "게시글 이름"}]
     assert response["risk"]["level"] == "caution"
+
+
+def test_mask_accepts_dense_signage_without_truncating_candidates(adapter, monkeypatch):
+    import json
+    from fastapi.testclient import TestClient
+
+    async def limited(fn, *args):
+        return fn(*args)
+
+    monkeypatch.setattr(adapter, "_limited", limited)
+    image, item = sample()
+    buffer = io.BytesIO()
+    image.save(buffer, "PNG")
+    regions = [{"id": f"r{i}", "text": "가게", "box": [58, 33, 102, 57],
+                "polygon": item["location_in_image"]["polygon"]} for i in range(72)]
+    with TestClient(adapter.gpu.app) as client:
+        response = client.post("/gpu/v1/mask", files={"file": ("dense.png", buffer.getvalue(), "image/png")},
+                               data={"meta": json.dumps({"regions": regions})})
+        assert response.status_code == 200, response.text
+        assert len(response.json()["fragments"]) == 72
+        assert response.json()["fragments"][-1]["region_id"] == "r71"

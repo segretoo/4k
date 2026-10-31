@@ -14,9 +14,12 @@ def main():
     parser.add_argument("--url", default="http://10.1.1.30:8000")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--expected", type=int, default=34)
+    parser.add_argument("--exclude", action="append", default=["contact.jpg"],
+                        help="Generated contact sheet excluded by the approved evaluation manifest")
     args = parser.parse_args()
     images = sorted({path.resolve() for folder in args.image_dir for path in folder.rglob("*")
-                     if path.suffix.lower() in {".jpg", ".jpeg", ".png"}})
+                     if path.suffix.lower() in {".jpg", ".jpeg", ".png"}
+                     and path.name not in args.exclude})
     if len(images) != args.expected:
         raise SystemExit(f"Expected {args.expected} images, found {len(images)}; refusing partial-set evaluation")
     results = []
@@ -41,6 +44,7 @@ def main():
                 row["check_seconds"] = round(time.perf_counter() - started, 3)
                 row["region_count"] = len(checked["regions"])
                 row["requires_review"] = checked["requires_review"]
+                row["pipeline_metrics"] = checked.get("pipeline_metrics", {})
                 (folder / "check.json").write_text(json.dumps(checked, ensure_ascii=False, indent=2), encoding="utf-8")
                 if checked["regions"]:
                     mask_started = time.perf_counter()
@@ -58,6 +62,9 @@ def main():
                         for kind in ("patch", "alpha"):
                             (folder / f"{fragment_index:03}_{kind}.png").write_bytes(
                                 base64.b64decode(fragment[f"{kind}_base64"]))
+                        fragment.pop("patch_base64")
+                        fragment.pop("alpha_base64")
+                    (folder / "mask.json").write_text(json.dumps(masked, ensure_ascii=False, indent=2), encoding="utf-8")
                 row.update(status="completed", total_seconds=round(time.perf_counter() - started, 3))
             except Exception as error:
                 row["error"] = f"{type(error).__name__}: {error}"
