@@ -69,6 +69,14 @@ def main():
             for folder in args.image_dir:
                 command += ["--image-dir", str(folder)]
             completed = subprocess.run(command, check=False)
+            retries = 0
+            while completed.returncode != 0 and retries < 2:
+                retries += 1
+                row["retry_attempts"] = retries
+                save()
+                print(f"RETRY {label}: failed images only ({retries}/2)", flush=True)
+                time.sleep(5 * retries)
+                completed = subprocess.run(command + ["--retry-failed"], check=False)
             row["status"] = "completed" if completed.returncode == 0 else "failed"
             row["exit_code"] = completed.returncode
             save()
