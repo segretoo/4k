@@ -75,7 +75,33 @@ def _fixture() -> dict:
     if not p.is_absolute():
         from pathlib import Path
         p = Path(__file__).resolve().parents[2] / p
-    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+    if not p.exists():
+        return {}
+    fx = json.loads(p.read_text(encoding="utf-8"))
+    # 파일 이름이 바뀌거나(예: "uc2_demo (1).jpg") 서버가 다시 저장해도 같은 사진이면 알아보도록
+    # 작은 흑백 지문(16x16)을 같이 만들어 둔다
+    fx["__prints__"] = [(_print(img.read_bytes()), img.name) for img in p.parent.glob("*.jpg") if img.name in fx]
+    return fx
+
+
+def _print(image: bytes) -> list[int]:
+    with Image.open(io.BytesIO(image)) as im:
+        return list(ImageOps.exif_transpose(im).convert("L").resize((16, 16)).getdata())
+
+
+def _lookup(image: bytes, source: str) -> dict:
+    fx = _fixture()
+    if source in fx:
+        return fx[source]
+    try:
+        mine = _print(image)
+    except Exception:
+        return {}
+    best = min(
+        ((sum(abs(a - b) for a, b in zip(mine, fp)) / len(fp), name) for fp, name in fx.get("__prints__", [])),
+        default=(999.0, ""),
+    )
+    return fx[best[1]] if best[0] < 4 else {}
 
 
 class MockGpu:
@@ -93,7 +119,7 @@ class MockGpu:
     async def analyze(self, image: bytes, meta: dict) -> AnalyzeResult:
         async with _gpu_lock:
             await asyncio.sleep(settings.mock_delay_s)
-        fx = _fixture().get(meta.get("source", ""), {})
+        fx = _lookup(image, meta.get("source", ""))
         texts = [TextItem(**t) for t in fx.get("texts", [])]
         entities = [Entity(**e) for e in fx.get("entities", [])] + caption_entities(meta.get("caption", ""))
         level = risk_level({e.type for e in entities})

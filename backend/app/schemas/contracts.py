@@ -156,6 +156,13 @@ class Warning(BaseModel):
     in_caption: bool = False
 
 
+class CaptionEdit(BaseModel):
+    """캡션에서 뺄 수 있는 한 조각 (가리기 화면에서 하나씩 켜고 끔)"""
+    id: str
+    type: EntityType
+    text: str  # 캡션 안에 그대로 있는 글자. 이 글자를 지우면 된다.
+
+
 class CheckResponse(BaseModel):
     level_now: Optional[Level] = None
     level_if_posted: Level
@@ -163,6 +170,7 @@ class CheckResponse(BaseModel):
     warnings: list[Warning] = []
     regions: list[Region] = []
     caption_suggestion: str = ""
+    caption_edits: list[CaptionEdit] = []
     image_size: list[int]
 
 

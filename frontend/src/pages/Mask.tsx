@@ -3,16 +3,32 @@ import { Navigate } from 'react-router-dom'
 import { errorMessage, maskPhoto } from '../api/client'
 import type { MaskResponse } from '../api/types'
 import RegionPreview from '../components/RegionPreview'
-import { ErrorBox, Note, Panel, PixelIcon, Screen, Title, TopBar } from '../components/ui'
+import { Bottom, Btn, C, ErrorNote, Frame, Header, JUA, Toggle } from '../components/wf'
 import { TYPE_LABEL } from '../lib/labels'
+import { applyEdits } from '../lib/caption'
 import { useApp } from '../state/AppState'
+
+interface Item {
+  id: string
+  label: string
+  sub: string
+}
+
+/** 가린 사진을 기기에 저장 (게시는 사용자가 직접) */
+function download(dataUrl: string) {
+  const a = document.createElement('a')
+  a.href = dataUrl
+  a.download = 'kkokkok_masked.jpg'
+  a.click()
+}
 
 export default function Mask() {
   const { uc2 } = useApp()
   const c = uc2.check
-  // 확실한 단서는 기본으로 켜고, 확인 필요(읽기 불확실)는 꺼 둔다
-  const [active, setActive] = useState<Set<string>>(() => new Set(c?.regions.filter((r) => r.type !== 'unreadable').map((r) => r.id)))
-  const [useSuggestion, setUseSuggestion] = useState(true)
+  // 확실한 단서와 캡션 조각은 켜 두고, 확인 필요(판독 불확실)는 꺼 둔다 — 와이어프레임 기본값과 같음
+  const [on, setOn] = useState<Set<string>>(
+    () => new Set([...(c?.regions.filter((r) => r.type !== 'unreadable').map((r) => r.id) ?? []), ...(c?.caption_edits.map((e) => e.id) ?? [])]),
+  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [masked, setMasked] = useState<MaskResponse | null>(null)
@@ -20,22 +36,41 @@ export default function Mask() {
 
   if (!c || !uc2.file || !uc2.previewUrl) return <Navigate to="/uc2" replace />
 
-  const caption = useSuggestion ? c.caption_suggestion : uc2.caption
-  const chosen = c.regions.filter((r) => active.has(r.id))
+  const items: Item[] = [
+    ...c.regions.map((r) => ({
+      id: r.id,
+      label: r.type === 'unreadable' ? '읽을 수 없는 글자 가리기' : r.type === 'name' ? `이름표 "${r.text}" 가리기` : `${TYPE_LABEL[r.type]} "${r.text}" 가리기`,
+      sub: r.type === 'unreadable' ? '사진 · 확인 필요' : `사진 · ${TYPE_LABEL[r.type]} 단서`,
+    })),
+    ...c.caption_edits.map((e) => ({
+      id: e.id,
+      label: e.text.startsWith('#') ? `${e.text} 빼기` : `"${e.text}" 빼기`,
+      sub: `캡션 · ${TYPE_LABEL[e.type]} 단서`,
+    })),
+  ]
+
+  const chosen = c.regions.filter((r) => on.has(r.id))
+  const caption = applyEdits(
+    uc2.caption,
+    c.caption_edits.filter((e) => on.has(e.id)).map((e) => e.text),
+  )
 
   const toggle = (id: string) => {
-    const next = new Set(active)
+    const next = new Set(on)
     if (next.has(id)) next.delete(id)
     else next.add(id)
-    setActive(next)
-    setMasked(null)
+    setOn(next)
+    setMasked(null) // 고른 곳이 바뀌면 다시 가려야 함
+    setCopied(false)
   }
 
-  const apply = async () => {
+  const save = async () => {
     setBusy(true)
     setError(null)
     try {
-      setMasked(await maskPhoto(uc2.file!, chosen.map((r) => r.box), chosen.map((r) => r.text)))
+      const res = await maskPhoto(uc2.file!, chosen.map((r) => r.box), chosen.map((r) => r.text))
+      setMasked(res)
+      download(`data:image/jpeg;base64,${res.image_base64}`)
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -48,81 +83,116 @@ export default function Mask() {
       await navigator.clipboard.writeText(caption)
       setCopied(true)
     } catch {
-      setCopied(false)
+      setError('복사하지 못했어요. 캡션을 길게 눌러 직접 복사해 주세요.')
     }
   }
 
-  const dataUrl = masked ? `data:image/jpeg;base64,${masked.image_base64}` : null
+  const maskedUrl = masked ? `data:image/jpeg;base64,${masked.image_base64}` : null
 
   return (
-    <Screen>
-      <TopBar title="가리고 수정하기" back="/uc2" />
-      <Title sub="주변 배경으로 자연스럽게 채워요. 사진은 우리 서버 밖으로 나가지 않아요.">{'가릴 곳을\n골라 주세요'}</Title>
+    <Frame gap={12}>
+      <Header title="가리고 수정하기" back="/uc2" />
 
-      {dataUrl ? (
-        <div className="preview">
-          <img src={dataUrl} alt="가린 사진 미리보기" />
-        </div>
+      {maskedUrl ? (
+        <RegionPreview src={maskedUrl} size={c.image_size} regions={[]} mode="none" caption="가린 사진 · 주변 배경으로 채웠어요" />
       ) : (
-        <RegionPreview src={uc2.previewUrl} size={c.image_size} regions={c.regions} activeIds={active} />
+        <RegionPreview
+          src={uc2.previewUrl}
+          size={c.image_size}
+          regions={c.regions}
+          mode="mask"
+          activeIds={on}
+          caption="미리보기 · 주변 배경으로 자연스럽게 채워요 (서버 밖으로 안 나가요)"
+        />
       )}
 
-      <Panel>
-        {c.regions.map((r) => (
-          <label key={r.id} className="toggle">
-            <input type="checkbox" checked={active.has(r.id)} onChange={() => toggle(r.id)} />
-            <span className="t">
-              <strong>
-                {r.type === 'unreadable' ? '읽을 수 없는 글자' : `${TYPE_LABEL[r.type]} "${r.text}"`} 가리기
-              </strong>
-              <span className="small">사진 · {r.type === 'unreadable' ? '확인 필요' : `${TYPE_LABEL[r.type]} 단서`}</span>
-            </span>
-          </label>
+      <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {items.map((it) => (
+          <li
+            key={it.id}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              padding: '7px 12px',
+              background: C.white,
+              border: `3px solid ${C.ink}`,
+              borderRadius: 12,
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
+              <span style={{ fontFamily: JUA, fontSize: 15 }}>{it.label}</span>
+              <span style={{ fontSize: 12, color: C.sub }}>{it.sub}</span>
+            </div>
+            <Toggle on={on.has(it.id)} onClick={() => toggle(it.id)} label={it.label} />
+          </li>
         ))}
-        {c.caption_suggestion !== uc2.caption && (
-          <label className="toggle">
-            <input type="checkbox" checked={useSuggestion} onChange={(e) => setUseSuggestion(e.target.checked)} />
-            <span className="t">
-              <strong>캡션에서 단서 빼기</strong>
-              <span className="small">캡션 · 시간·이름 해시태그 등</span>
-            </span>
-          </label>
-        )}
-      </Panel>
+      </ul>
 
-      <Panel>
-        <span className="small">수정한 캡션</span>
-        <p style={{ margin: 0 }}>{caption || '(캡션 없음)'}</p>
-        <button type="button" className="btn btn-light btn-small" onClick={copy}>
-          {copied ? '복사했어요' : '복사'}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: C.white, border: `3px solid ${C.ink}`, borderRadius: 12 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', fontSize: 14, lineHeight: 1.5, minWidth: 0 }}>
+          <span style={{ fontSize: 12, color: C.sub }}>수정한 캡션</span>
+          <span style={{ wordBreak: 'break-all' }}>{caption || '(캡션 없음)'}</span>
+        </div>
+        <button
+          type="button"
+          onClick={copy}
+          disabled={!caption}
+          style={{
+            flex: 'none',
+            height: 36,
+            padding: '0 12px',
+            border: `2px solid ${C.ink}`,
+            borderRadius: 8,
+            background: copied ? C.mint : C.peach,
+            color: C.ink,
+            fontFamily: JUA,
+            fontSize: 14,
+            cursor: 'pointer',
+          }}
+        >
+          {copied ? '복사됨' : '복사'}
         </button>
-      </Panel>
+      </div>
 
       {masked && (
-        <Panel>
-          <strong>{masked.rescan_passed ? '재검사 통과' : '재검사에서 글자가 다시 읽혔어요'}</strong>
+        <div
+          role="status"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+            padding: '10px 12px',
+            background: masked.rescan_passed ? '#E5F4EC' : '#FDE8E4',
+            border: `3px solid ${C.ink}`,
+            borderRadius: 12,
+            fontSize: 13,
+          }}
+        >
+          <span style={{ fontFamily: JUA, fontSize: 15 }}>{masked.rescan_passed ? '재검사 통과' : '재검사에서 글자가 다시 읽혔어요'}</span>
           {masked.rescan_passed ? (
-            <Note icon="check">가린 사진을 다시 읽어 봤어요. 가린 글자가 읽히지 않아요.</Note>
+            <span>✓ 가린 사진을 다시 읽어 봤어요. 가린 글자가 읽히지 않아요.</span>
           ) : (
-            <ErrorBox>다시 읽힌 글자: {masked.leaked.join(', ')} · 영역을 넓혀 다시 가려 주세요.</ErrorBox>
+            <span>다시 읽힌 글자: {masked.leaked.join(', ')} · 가릴 곳을 더 켜고 다시 저장해 주세요.</span>
           )}
-          {masked.meta_clean && <Note icon="check">사진 속 위치 정보(GPS)도 함께 지웠어요.</Note>}
-        </Panel>
+          {masked.meta_clean && <span>✓ 사진 속 위치 정보(GPS)도 함께 지웠어요.</span>}
+        </div>
       )}
-      {error && <ErrorBox>{error}</ErrorBox>}
+      {error && <ErrorNote>{error}</ErrorNote>}
 
-      <div className="bottom">
-        {!masked ? (
-          <button type="button" className="btn" disabled={busy || chosen.length === 0} onClick={apply}>
-            {busy ? '가리는 중...' : chosen.length ? `${chosen.length}곳 가리기` : '가릴 곳을 골라 주세요'}
-          </button>
+      <Bottom>
+        {masked ? (
+          <Btn kind="plain" onClick={() => download(maskedUrl!)}>
+            저장 완료 · 다시 받기
+          </Btn>
         ) : (
-          <a className="btn" href={dataUrl!} download="kkokkok_masked.jpg">
-            <PixelIcon name="upload" /> 가린 사진 저장하기
-          </a>
+          <Btn onClick={save} disabled={busy || chosen.length === 0}>
+            {busy ? '가리는 중...' : chosen.length ? '가린 사진 저장하기' : c.regions.length ? '가릴 곳을 켜 주세요' : '사진에는 가릴 곳이 없어요'}
+          </Btn>
         )}
-        <Note icon="warn">게시는 직접 해 주세요. 앱이 대신 올리지 않아요.</Note>
-      </div>
-    </Screen>
+        <span style={{ fontSize: 12, color: C.sub, textAlign: 'center' }}>게시는 직접 해 주세요. 앱이 대신 올리지 않아요.</span>
+      </Bottom>
+    </Frame>
   )
 }

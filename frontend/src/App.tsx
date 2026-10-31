@@ -7,6 +7,7 @@ import Consent from './pages/Consent'
 import Draft from './pages/Draft'
 import Landing from './pages/Landing'
 import Mask from './pages/Mask'
+import Privacy from './pages/Privacy'
 import Result from './pages/Result'
 import Select from './pages/Select'
 import Upload from './pages/Upload'
@@ -26,6 +27,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/consent" element={<Consent />} />
+          <Route path="/privacy" element={<Privacy />} />
           <Route path="/uc1/upload" element={<NeedConsent next="uc1"><Upload /></NeedConsent>} />
           <Route path="/uc1/select" element={<NeedConsent next="uc1"><Select /></NeedConsent>} />
           <Route path="/uc1/analyze" element={<NeedConsent next="uc1"><Analyze /></NeedConsent>} />

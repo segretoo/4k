@@ -34,3 +34,14 @@ def test_safe_and_caution_need_no_cleanup():
 def test_explanation_text():
     assert "언제 어디서" in engine.explain(["name", "school", "time"], "very_high")
     assert engine.explain([], "safe") == "아이를 특정할 단서가 없어요."
+
+
+def test_caption_edits_split_clues():
+    from app.schemas.contracts import AnalyzeResult
+    from app.services.precheck import apply_edits, caption_edits
+    from app.services.text_rules import caption_entities
+
+    cap = "오늘도 8시 40분에 등원 완료 #하늘이"
+    edits = caption_edits(AnalyzeResult(photo_id="p", texts=[], entities=caption_entities(cap)), cap)
+    assert [(e.type, e.text) for e in edits] == [("time", "8시 40분에"), ("name", "#하늘이")]
+    assert apply_edits(cap, [e.text for e in edits]) == "오늘도 등원 완료"
