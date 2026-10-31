@@ -95,6 +95,7 @@ def main():
     summary = {"expected": args.expected, "attempted": len(results),
                "completed": sum(row["status"] == "completed" for row in results),
                "mode": "real HTTP API; no recognition accuracy score without ground truth", "runs": results}
+    (args.out / "progress.json").write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
     (args.out / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     if summary["completed"] != args.expected:
         raise SystemExit("One or more images failed; see summary.json")

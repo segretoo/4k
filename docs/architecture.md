@@ -39,7 +39,7 @@ Install the FastAPI dependencies from `backend/requirements.txt`, build the web 
 
 Run `ml/gpu_server` in the existing CUDA/Torch environment that can load the cached `Qwen/Qwen3.5-4B` model. Keep `LOAD_4BIT=false` for the measured BF16 configuration, `PIPELINE_ORDER=ocr_first`, `MODEL_EDGE=2200`, `OCR_EDGE=2200`, and `MAX_WAITING=4`. PaddleOCR can run in a separate CPU sidecar process so its Paddle dependencies do not replace the Torch/CUDA environment. Use one Uvicorn worker. Configure a private API key and firewall port 8080 to allow only the CPU host.
 
-The image routes used by the product are `/gpu/v1/health`, `/gpu/v1/screen-captions`, `/gpu/v1/analyze`, and `/gpu/v1/mask`. A fifth waiting request receives HTTP 429; the CPU layer returns a user-facing temporary-unavailable response if the internal GPU queue is unavailable.
+The image routes used by the product are `/gpu/v1/health`, `/gpu/v1/screen-captions`, `/gpu/v1/analyze`, and `/gpu/v1/mask`. A fifth waiting request at either bounded queue receives HTTP 429; UC1 batch workers retry CPU admission without skipping photos, while the interactive UC2 flow can show a retry message.
 
 ## User identity and data lifecycle
 
@@ -53,10 +53,10 @@ The product-facing GPU adapter does not save source images or OCR results. The m
 
 | Setting | Selected value | 34-image evidence |
 |---|---|---|
-| OCR/model order | OCR-first | 30/32 positive scenes for 2200px; 34/34 valid JSON |
-| OCR/model image edge | 2200px | 26.65s average; mean 4,620 input tokens; peak reserved 13.12 GiB |
-| OCR/model image edge (lower-cost option) | 1280px | 29/32 positive scenes; 33/34 valid JSON; mean 2,626 tokens; average time 26.20s |
-| VLM-first | Not selected as default | Tested on six positive samples only, not the full 34; 31.77s/33.76s average by size |
-| Mask | mean surrounding RGB + 2px dilation + sigma 8 | 34-image result bundle contains per-image OCR, masks, and elapsed-time comparisons |
+| OCR/model order | OCR-first | 30/32 positive scenes at 2200px; 28/32 at 1280px |
+| OCR/model image edge | 2200px | 26.06s mean check; 4,613 mean input tokens; 11.94 GiB peak reserved; 33/34 VLM JSON parses |
+| OCR/model image edge (lower-memory option) | 1280px | 26.89s mean check; 2,619 mean input tokens; 10.93 GiB peak reserved; 32/34 VLM JSON parses |
+| VLM-first | Not selected | Full 34-image tests: 40.72s/41.19s mean check; 24/32 and 19/32 positive scenes by size |
+| Mask | mean surrounding RGB + 2px dilation + sigma 8 | OCR rescan found residual characters in 7/34–8/34 images; product export blocks those cases |
 
-2200px missed two small bench labels (`04.jpg`, `06.jpg`). A higher resolution did not fix them. The 6/6 VLM-first result is a six-image sample, not a 100% full-dataset score. See the full 34-image report and gallery generated during evaluation; the report is outside this repository because real evaluation photos must not be committed.
+2200px missed two small bench labels (`04.jpg`, `06.jpg`). OCR stays at 2200px in all four tests, and OCR output was identical across the four profiles; OCR recognition loss/CER cannot be inferred because no exact transcription ground truth exists. VLM-first was slower and found fewer labeled scenes, so OCR-first 2200px is the default. See the private 34-image report and gallery; evaluation photos must not be committed.

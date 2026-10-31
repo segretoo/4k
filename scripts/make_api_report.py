@@ -80,12 +80,15 @@ def main():
         ocr_rows = [text for row in values for text in row["checked"].get("ocr_texts", [])]
         ocr_conf = [text.get("conf") for text in ocr_rows
                     if isinstance(text.get("conf"), (int, float))]
+        input_tokens = [r.get("pipeline_metrics", {}).get("vlm_input_token_count") for r in values
+                        if isinstance(r.get("pipeline_metrics", {}).get("vlm_input_token_count"), int)]
         summaries.append({"condition": condition, "attempted": len(values), "completed": len(complete),
             "positive_hits": len(predicted & positives), "positive_total": len(positives),
             "false_positive_scenes": len(predicted & negatives),
             "ocr_text_lines": len(ocr_rows),
             "mean_ocr_lines_per_image": mean([len(r["checked"].get("ocr_texts", [])) for r in values]),
             "mean_ocr_confidence": mean(ocr_conf),
+            "mean_vlm_input_tokens": mean(input_tokens),
             "mean_check_seconds": mean([r["check_seconds"] for r in values if "check_seconds" in r]),
             "mean_mask_seconds": mean([r["mask_seconds"] for r in values if "mask_seconds" in r]),
             "mean_total_seconds": mean(total),
@@ -112,12 +115,13 @@ def main():
             writer = csv.DictWriter(out, fieldnames=list(csv_rows[0]))
             writer.writeheader()
             writer.writerows(csv_rows)
-    header = '<table><thead><tr><th>조건</th><th>API 완료</th><th>양성 장면 단서</th><th>음성 오탐</th><th>OCR 줄 수(평균/장)</th><th>평균 OCR 신뢰도</th><th>OCR 출력 일치(2200 OCR 우선 대비)</th><th>점검 평균</th><th>마스킹·재검사 평균</th><th>전체 평균 / p95</th><th>최대 예약 VRAM</th><th>유효 JSON</th></tr></thead><tbody>'
+    header = '<table><thead><tr><th>조건</th><th>API 완료</th><th>양성 장면 단서</th><th>음성 오탐</th><th>OCR 줄 수(평균/장)</th><th>평균 OCR 신뢰도</th><th>OCR 출력 일치(2200 OCR 우선 대비)</th><th>VLM 입력 토큰 평균</th><th>점검 평균</th><th>마스킹·재검사 평균</th><th>전체 평균 / p95</th><th>최대 예약 VRAM</th><th>VLM JSON 파싱</th></tr></thead><tbody>'
     for s in summaries:
         header += (f'<tr><td>{s["condition"]}</td><td>{s["completed"]}/34</td>'
                    f'<td>{s["positive_hits"]}/{s["positive_total"]}</td><td>{s["false_positive_scenes"]}</td>'
                    f'<td>{s["ocr_text_lines"]} ({display(s["mean_ocr_lines_per_image"])})</td>'
                    f'<td>{display(s["mean_ocr_confidence"])}</td><td>{s["ocr_output_exact_match_vs_2200_ocr_first"]}</td>'
+                   f'<td>{display(s["mean_vlm_input_tokens"])}</td>'
                    f'<td>{display(s["mean_check_seconds"])}s</td><td>{display(s["mean_mask_seconds"])}s</td>'
                    f'<td>{display(s["mean_total_seconds"])} / {display(s["p95_total_seconds"])}s</td>'
                    f'<td>{s["peak_reserved_gib"]} GiB</td><td>{s["valid_json_count"]}/34</td></tr>')
@@ -179,7 +183,8 @@ def main():
             '<p>CPU 10.1.1.30 → GPU 10.1.2.30의 실제 OCR·VLM·마스킹 API 결과입니다. 모든 조건에서 OCR 긴 변은 2200px이며 VLM 입력 크기와 순서를 비교합니다. '
             '평가에서는 반환된 후보를 모두 선택해 마스킹했습니다. 전체 시간에는 두 번의 이미지 업로드·OCR 재검사가 포함되고 모델 로딩/별도 워밍업은 제외합니다.</p>'
             '<p>장면 단위 단서 발견은 기존 에이전트 비전 라벨 32개 양성/2개 음성을 기준으로 했습니다. 한 사진의 모든 단서를 찾았다는 뜻은 아닙니다. '
-            '전수 문자 전사 정답이 없어 전체 OCR 오타율(CER)은 계산하지 않았습니다. 아래 실제 OCR 원문과 마스킹을 확인할 수 있습니다.</p>'
+            '전수 문자 전사 정답이 없어 전체 OCR 오타율(CER)은 계산하지 않았습니다. 아래 실제 OCR 원문과 마스킹을 확인할 수 있습니다. '
+            'OCR 해상도와 PaddleOCR 설정은 모든 조건에서 2200px로 고정했습니다. OCR 출력 일치도는 조합별 OCR 정확도 점수가 아니라 OCR 경로가 같은지 비교한 값이며, VLM 입력 토큰 평균은 별도로 표시합니다.</p>'
             '<p>마스크는 주변 평균 RGB, 2px 확장, sigma 8입니다. 서버는 patch와 alpha만 응답하며 아래 이미지는 보고서 생성기가 클라이언트 방식으로 합성한 미리보기입니다. '
             'API 오류, 검토 필요, 재검사에서 다시 읽힌 글자는 통과와 구분해서 표시합니다.</p>' + header + ''.join(cards))
     (args.out / "report.html").write_text(page, encoding="utf-8")
