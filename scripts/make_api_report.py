@@ -77,9 +77,15 @@ def main():
         complete = [r for r in values if r["status"] == "completed"]
         peak = [r.get("pipeline_metrics", {}).get("gpu_peak_reserved_bytes") for r in values]
         total = sorted(r["total_seconds"] for r in complete)
+        ocr_rows = [text for row in values for text in row["checked"].get("ocr_texts", [])]
+        ocr_conf = [text.get("conf") for text in ocr_rows
+                    if isinstance(text.get("conf"), (int, float))]
         summaries.append({"condition": condition, "attempted": len(values), "completed": len(complete),
             "positive_hits": len(predicted & positives), "positive_total": len(positives),
             "false_positive_scenes": len(predicted & negatives),
+            "ocr_text_lines": len(ocr_rows),
+            "mean_ocr_lines_per_image": mean([len(r["checked"].get("ocr_texts", [])) for r in values]),
+            "mean_ocr_confidence": mean(ocr_conf),
             "mean_check_seconds": mean([r["check_seconds"] for r in values if "check_seconds" in r]),
             "mean_mask_seconds": mean([r["mask_seconds"] for r in values if "mask_seconds" in r]),
             "mean_total_seconds": mean(total),
@@ -88,6 +94,14 @@ def main():
             "valid_json_count": sum(r.get("pipeline_metrics", {}).get("json_valid") is True for r in values),
             "rescan_leak_images": [r["image"] for r in values if r.get("leaked")],
             "missed_positive_scenes": sorted(positives - predicted)})
+    baseline = records.get("edge_2200_ocr_first", {})
+    for summary_row in summaries:
+        current = records[summary_row["condition"]]
+        paired = sorted(set(baseline) & set(current))
+        exact = sum({norm(t["text"]) for t in baseline[name]["checked"].get("ocr_texts", [])}
+                    == {norm(t["text"]) for t in current[name]["checked"].get("ocr_texts", [])}
+                    for name in paired)
+        summary_row["ocr_output_exact_match_vs_2200_ocr_first"] = f"{exact}/{len(paired)}" if paired else "baseline"
     matrix = read_json(args.evidence / "matrix.json", {})
     complete = all(s["attempted"] == 34 and s["completed"] == 34 for s in summaries)
     summary = {"generated_kst": datetime.now(timezone(timedelta(hours=9))).isoformat(),
@@ -98,10 +112,12 @@ def main():
             writer = csv.DictWriter(out, fieldnames=list(csv_rows[0]))
             writer.writeheader()
             writer.writerows(csv_rows)
-    header = '<table><thead><tr><th>조건</th><th>API 완료</th><th>양성 장면 단서</th><th>음성 오탐</th><th>점검 평균</th><th>마스킹·재검사 평균</th><th>전체 평균 / p95</th><th>최대 예약 VRAM</th><th>유효 JSON</th></tr></thead><tbody>'
+    header = '<table><thead><tr><th>조건</th><th>API 완료</th><th>양성 장면 단서</th><th>음성 오탐</th><th>OCR 줄 수(평균/장)</th><th>평균 OCR 신뢰도</th><th>OCR 출력 일치(2200 OCR 우선 대비)</th><th>점검 평균</th><th>마스킹·재검사 평균</th><th>전체 평균 / p95</th><th>최대 예약 VRAM</th><th>유효 JSON</th></tr></thead><tbody>'
     for s in summaries:
         header += (f'<tr><td>{s["condition"]}</td><td>{s["completed"]}/34</td>'
                    f'<td>{s["positive_hits"]}/{s["positive_total"]}</td><td>{s["false_positive_scenes"]}</td>'
+                   f'<td>{s["ocr_text_lines"]} ({display(s["mean_ocr_lines_per_image"])})</td>'
+                   f'<td>{display(s["mean_ocr_confidence"])}</td><td>{s["ocr_output_exact_match_vs_2200_ocr_first"]}</td>'
                    f'<td>{display(s["mean_check_seconds"])}s</td><td>{display(s["mean_mask_seconds"])}s</td>'
                    f'<td>{display(s["mean_total_seconds"])} / {display(s["p95_total_seconds"])}s</td>'
                    f'<td>{s["peak_reserved_gib"]} GiB</td><td>{s["valid_json_count"]}/34</td></tr>')
