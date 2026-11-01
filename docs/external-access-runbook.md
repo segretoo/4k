@@ -10,7 +10,7 @@ NCP VPC의 **Public Application Load Balancer**에 HTTPS 443 리스너를 만들
 
 1. Networking > Load Balancer에서 VPC **Public Application Load Balancer**를 생성한다. 같은 VPC의 전용 Load Balancer 서브넷을 사용한다.
 2. 리스너 `HTTPS:443`, 서버 프로토콜 `HTTP`, 대상 `CPU 서버 사설 IP:8000`인 Target Group을 만든다. 헬스 체크는 `GET /health`로 둔다.
-3. 도메인이 있으면 DNS에서 소유권을 확인하고 NCP Certificate Manager의 도메인 검증 인증서를 등록한 뒤 ALB 443에 연결한다. DNS 업체에 ALB가 제공한 주소를 연결한다.
+3. HTTPS 인증서가 검증될 도메인/서브도메인이 필요하다. 도메인을 준비하고 DNS 검증으로 NCP Certificate Manager 인증서를 발급한 뒤 ALB 443에 연결한다. DNS 업체에서 그 호스트명을 ALB가 제공한 주소로 연결한다. 현재 도메인이 없으므로 공개 전에 이 단계를 먼저 준비한다.
 4. ALB의 ACG에는 인터넷에서 `TCP 443`만 허용한다. HTTP 리다이렉트가 필요하면 `TCP 80`도 추가한다.
 5. CPU ACG에는 ALB의 Access Control Group을 소스로 `TCP 8000`만 허용한다. `0.0.0.0/0`에서 CPU 8000으로 직접 들어오는 규칙은 만들지 않는다.
 6. GPU ACG는 CPU ACG에서 `TCP 8080`만 허용한다. GPU API 포트는 인터넷에 열지 않는다.
@@ -37,15 +37,19 @@ GPU 서버 `.env`의 `GPU_API_KEY`는 CPU 서버 값과 일치시킨다. 모델 
 
 - 현재 작업 환경에서 `10.1.1.30:8000`과 `10.1.2.30:8080`에 연결할 수 없어 서버 설정/상태를 원격 확인하거나 바꾸지 못했다.
 - NCP 콘솔에서는 같은 VPC에 Public Load Balancer 전용 서브넷이 이미 있는지 확인해야 한다. 없다면 생성이 필요하다.
-- 도메인을 쓰려면 도메인 관리 권한으로 DNS 레코드를 추가하고 인증서 DNS 검증을 완료해야 한다.
+- 현재 도메인이 없으므로, 신뢰할 수 있는 HTTPS 주소를 만들려면 도메인/서브도메인을 준비하고 DNS 검증 인증서를 발급해야 한다. IP 주소만으로 브라우저에 정상적인 도메인 인증서를 제공할 수 없다.
 - 현재 앱에는 사용자 계정 인증이 없고 브라우저 세션 쿠키로 작업 소유권을 구분한다. 일반 공개 전에는 로그인/접근 통제, 업로드 속도 제한, 사용량 제한을 넣는다. 소수 인원 시범 테스트는 Listener ACL로 IP를 제한한다.
 
 ## 사용자 작업
 
-1. 사용할 도메인/서브도메인과 시범 공개 대상(IP 제한 또는 인증 사용자)을 정한다.
-2. NCP 콘솔에서 위 ALB와 Listener ACL을 준비한다. 도메인을 사용하면 DNS에 접근할 수 있어야 한다.
-3. ALB가 만들어지면 ALB 이름, 대상 그룹 이름, 제공 주소와 도메인 준비 여부를 알려준다. 비밀번호·API 키·인증서 개인 키는 전달하지 않는다.
+1. 도메인/서브도메인을 준비하고, 시범 공개 대상을 본인/초대 사용자로 제한할지 정한다.
+2. NCP 콘솔에서 위 ALB와 Listener ACL을 준비한다. 인증서 DNS 검증과 호스트 레코드를 추가할 수 있어야 한다.
+3. ALB가 만들어지면 ALB 이름, 대상 그룹 이름, 제공 주소와 도메인 호스트명을 알려준다. 비밀번호·API 키·인증서 개인 키는 전달하지 않는다.
 4. VPN이 켜져 있고 CPU/GPU SSH 터미널이 로그인되어 있는 상태에서 알려주면, 서버 앱 설정·헬스체크와 외부 브라우저 연결을 확인한다.
+
+## 데이터가 ALB를 통과하지 않게 하려면
+
+위의 Public ALB 구성은 HTTPS로 외부에 연결하는 가장 단순한 1단계지만, 사진 업로드/결과 응답도 ALB가 전달한다. 사진 데이터가 공개 중계 서버를 거치지 않게 하려면 별도 공인 신호 서버와 WebRTC DataChannel 전송 모듈을 구현해야 한다. 이 선택에는 signaling용 도메인/VM과 TLS, CPU peer 연결용 공인 IP 및 제한된 UDP ACG 규칙이 추가로 필요하다. NAT/방화벽에서 직접 연결을 막으면 TURN을 통한 데이터 중계 또는 연결 실패를 선택해야 한다. TURN 없이 모든 네트워크에서 직접 연결을 보장할 수는 없다.
 
 ## 공식 문서
 
@@ -53,3 +57,4 @@ GPU 서버 `.env`의 `GPU_API_KEY`는 CPU 서버 값과 일치시킨다. 모델 
 - [NCP Load Balancer Target Group](https://guide.ncloud-docs.com/docs/loadbalancer-targetgroup-vpc)
 - [NCP ACG 설정](https://guide.ncloud-docs.com/docs/server-acg-vpc)
 - [NCP Certificate Manager 인증서 정보](https://guide.ncloud-docs.com/docs/certificatemanager-cmissuedcertificate-feature)
+- [RFC 8445 ICE](https://www.rfc-editor.org/rfc/rfc8445.html) 및 [RFC 8656 TURN](https://www.rfc-editor.org/rfc/rfc8656.html)
