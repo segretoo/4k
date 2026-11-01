@@ -13,9 +13,9 @@ export const LEVEL_LABEL: Record<Level, string> = {
 export const TYPE_LABEL: Record<RegionType, string> = {
   name: '이름',
   age: '나이',
-  school: '유치원',
+  school: '학교·소속',
   area: '장소',
-  time: '등원 시간',
+  time: '시간·일정',
   contact: '연락처',
   unreadable: '읽을 수 없는 글자',
 }

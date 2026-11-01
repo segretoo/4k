@@ -85,10 +85,57 @@ The browser scales each crop box from `CheckResponse.image_size` to the locally 
 
 ## UC1: past-post review
 
-1. `POST /api/uc1/uploads` with an Instagram export ZIP; returns `UploadResponse` and thumbnail URLs.
-2. `POST /api/uc1/jobs` with `{ "upload_id": "...", "photo_ids": ["..."] }`; returns `202 { "job_id": "...", "total": 1 }`.
-3. Poll `GET /api/uc1/jobs/{job_id}` until `status` is `done` or `failed`.
-4. `DELETE /api/uc1/uploads/{upload_id}` cancels and removes an upload.
+1. `POST /api/uc1/uploads` with an Instagram export ZIP. The CPU server reads only Instagram `posts_*.json` and referenced image members. It returns `UploadResponse`, thumbnails, extracted hashtags, and CPU-only caption candidates. No GPU inference is used for this first review list.
+2. The user may edit candidate toggles and photo selections. Candidate IDs are deterministic within a post and tied to a `type`, `value`, and source. Manually added caption clues must be exact text contained in that post's caption.
+3. `POST /api/uc1/jobs` with selected photos and candidate decisions; returns `202 { "job_id": "...", "total": 1 }`.
+4. Poll `GET /api/uc1/jobs/{job_id}` until `status` is `done` or `failed`. The existing aggregate risk fields remain in `result`; `result.post_results` adds the per-post JSON array with per-photo detections and risk levels.
+5. `DELETE /api/uc1/uploads/{upload_id}` cancels and removes an upload.
+
+Example job input:
+
+```json
+{
+  "upload_id": "upload-token",
+  "photo_ids": ["p001_1", "p001_2", "p002_1"],
+  "candidate_selections": {
+    "p001": ["p001:4cbb77b99014"],
+    "p002": []
+  },
+  "manual_candidates": {
+    "p002": [{"type": "school", "value": "한빛초등학교"}]
+  }
+}
+```
+
+`candidate_selections` can be omitted to keep all suggested clues; an explicitly empty list for a post excludes its caption candidates. Image findings are not discarded by caption toggles. `manual_candidates` adds a user-confirmed caption clue and the API rejects values absent from the original post text.
+
+The completed response keeps the previous `EngineResult` fields and adds:
+
+```json
+{
+  "post_results": [
+    {
+      "post_id": "p001",
+      "posted_at": "2026-10-31T09:00:00+09:00",
+      "caption": "#한빛초등학교 등교",
+      "hashtags": ["한빛초등학교"],
+      "selected_candidate_ids": ["p001:4cbb77b99014"],
+      "manual_candidates": [],
+      "risk_level": "high",
+      "photos": [
+        {
+          "photo_id": "p001_1",
+          "source": "IMG_001.jpg",
+          "size": [2200, 1467],
+          "entities": [],
+          "risk_level": "caution",
+          "analysis_failed": false
+        }
+      ]
+    }
+  ]
+}
+```
 
 ## Local demo mode
 

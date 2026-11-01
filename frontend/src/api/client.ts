@@ -5,6 +5,7 @@ import type {
   JobCreated,
   JobStatus,
   MaskResponse,
+  ManualCaptionClue,
   ServerStatus,
   UploadResponse,
   Region,
@@ -56,8 +57,11 @@ export async function cancelUpload(uploadId: string): Promise<void> {
   await http.delete(`/api/uc1/uploads/${uploadId}`).catch(() => undefined)
 }
 
-export async function startJob(uploadId: string, photoIds: string[]): Promise<JobCreated> {
-  return (await http.post<JobCreated>('/api/uc1/jobs', { upload_id: uploadId, photo_ids: photoIds })).data
+export async function startJob(uploadId: string, photoIds: string[], candidateSelections?: Record<string, string[]>, manualCandidates?: Record<string, ManualCaptionClue[]>): Promise<JobCreated> {
+  return (await http.post<JobCreated>('/api/uc1/jobs', {
+    upload_id: uploadId, photo_ids: photoIds, candidate_selections: candidateSelections,
+    manual_candidates: manualCandidates,
+  })).data
 }
 
 export async function getJob(jobId: string): Promise<JobStatus> {

@@ -83,11 +83,22 @@ class PhotoSummary(BaseModel):
     thumb_url: str
 
 
+class CaptionCandidate(BaseModel):
+    id: str
+    type: EntityType
+    value: str
+    source: Literal["caption", "hashtag"]
+    why: str = ""
+    selected_by_default: bool = True
+
+
 class PostSummary(BaseModel):
     post_id: str
     posted_at: Optional[str] = None
     caption: str = ""
     photos: list[PhotoSummary] = []
+    hashtags: list[str] = []
+    candidates: list[CaptionCandidate] = []
     recommended: bool = False
     hints: list[str] = []
     score: float = 0.0
@@ -102,9 +113,16 @@ class UploadResponse(BaseModel):
     posts: list[PostSummary]
 
 
+class ManualCaptionClue(BaseModel):
+    type: EntityType
+    value: str = Field(min_length=1, max_length=120)
+
+
 class JobCreate(BaseModel):
     upload_id: str
     photo_ids: list[str] = Field(min_length=1)
+    candidate_selections: Optional[dict[str, list[str]]] = None
+    manual_candidates: Optional[dict[str, list[ManualCaptionClue]]] = None
 
 
 class JobCreated(BaseModel):
@@ -134,6 +152,7 @@ class EngineResult(BaseModel):
     clues: list[Clue] = []
     analyzed_posts: int = 0
     failed_photo_ids: list[str] = []
+    post_results: list[dict] = []
 
 
 class JobStatus(BaseModel):

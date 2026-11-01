@@ -49,6 +49,28 @@ UC1 uploads are private temporary directories, removed when a job completes/fail
 
 The product-facing GPU adapter does not save source images or OCR results. The multipart parser may spool uploads to OS temporary files; the adapter closes them immediately after reading, and request buffers become reclaimable when processing finishes. A separate benchmark/debug route may retain small output artifacts under its configured TTL; disable or firewall that route in production. Never put image samples, `.env`, API keys, or OCR logs in Git.
 
+## UC1: Instagram export and multi-post review
+
+1. The CPU API accepts an Instagram export ZIP, validates archive paths/expanded size, reads only `posts_*.json` and the referenced photo members, normalizes each image, and writes a short-lived owner-scoped working set. The ZIP is removed after extraction; unrelated export folders are not parsed.
+2. Before any vision inference, CPU rules scan each post caption and hashtags for possible name, age/class, school/affiliation, location, time/routine, and contact clues. The upload response includes the original post grouping, photo thumbnails, the extracted hashtags, and stable candidate IDs with clue type/source. This first pass does not occupy the GPU or send text to a hosted model.
+3. The frontend lets the user add/remove photos and toggle caption candidates. Directly added text must occur in that post's caption; it is not treated as a model-confirmed image finding.
+4. `POST /api/uc1/jobs` carries selected photo IDs plus the per-post candidate-ID selection and manually added caption clues. The CPU job worker calls the existing OCR/VLM pipeline only for selected photos, one image at a time through the fair GPU queue. Caption-derived entities that the user switched off are omitted from the final risk aggregation; photo-derived findings remain independently visible.
+5. The job response keeps the aggregate risk/cleanup fields used by the existing UI and adds `post_results[]`, grouped by original post. Each post row has its timestamp, caption, hashtags, confirmed candidate IDs, and `photos[]`; each photo row has its own detector entities, geometry, risk level, and failure flag. This is the JSON array the result screen can expand and inspect.
+6. The private upload folder, extracted photos, and enriched post JSON are deleted after success/failure/cancel/TTL. The JSON result is held only in the in-process job state until its TTL; durable database storage is not enabled.
+
+## External access: direct data path with rendezvous signaling
+
+The current CPU and GPU addresses are private VPC addresses. Do not expose the GPU API or its model port to the public internet. For an initial reliable public web launch, terminate HTTPS at an NCP load balancer/WAF or an outbound Cloudflare Tunnel to the CPU API; the browser talks to CPU, and CPU remains the only caller of GPU. This is the simplest operational choice, but HTTP traffic traverses that edge/tunnel.
+
+If the requirement is that the external server only pairs sessions and never carries image/API payloads, add a separate **signaling/rendezvous service** and a WebRTC DataChannel transport:
+
+1. The browser and CPU agent each open outbound WSS connections to the rendezvous service. The user authenticates at the product API; the CPU agent authenticates with a device credential. A short-lived, single-use pairing token binds one browser session to one CPU session.
+2. The rendezvous server exchanges only SDP/ICE connection metadata and the pairing state, with a short TTL and no photo, caption, OCR, or inference data.
+3. Browser and CPU agent negotiate ICE using STUN. When the network permits, WebRTC selects a direct UDP path secured by DTLS/SCTP; the rendezvous server is then absent from the data path. The CPU agent bridges authenticated DataChannel calls to the local CPU API, which continues to use the private GPU API.
+4. Some carrier-grade/symmetric NATs and enterprise firewalls cannot establish a direct peer path. A TURN server must relay traffic for those users, or the session must fail if the product forbids relayed payloads. Direct-only mode is therefore not universally reachable. Keep TURN as an explicit, metered fallback unless the no-relay requirement outweighs reachability.
+
+The rendezvous option is a later network feature, not part of the current API process. Before implementation, measure direct-ICE success across mobile carriers and office networks, decide the TURN fallback policy, and add authenticated pairing, token expiry/replay protection, per-session byte/time limits, audit-safe logs, and disconnect cleanup. Never put the pairing token or user ID in GPU metadata.
+
 ## Evaluation-backed defaults and limitations
 
 | Setting | Selected value | 34-image evidence |

@@ -14,11 +14,27 @@ export interface PhotoSummary {
   thumb_url: string
 }
 
+export interface CaptionCandidate {
+  id: string
+  type: EntityType
+  value: string
+  source: 'caption' | 'hashtag'
+  why: string
+  selected_by_default: boolean
+}
+
+export interface ManualCaptionClue {
+  type: EntityType
+  value: string
+}
+
 export interface PostSummary {
   post_id: string
   posted_at: string | null
   caption: string
   photos: PhotoSummary[]
+  hashtags: string[]
+  candidates: CaptionCandidate[]
   recommended: boolean
   hints: string[]
   score: number
@@ -60,6 +76,37 @@ export interface EngineResult {
   clues: Clue[]
   analyzed_posts: number
   failed_photo_ids: string[]
+  post_results: PostAnalysisResult[]
+}
+
+export interface DetectedEntity {
+  type: EntityType
+  value: string
+  evidence: 'image' | 'caption'
+  box?: Box | null
+  polygon?: Polygon | null
+  path?: string | null
+  why: string
+  time_source?: 'analog_clock' | 'digital_clock' | 'text_timestamp' | 'schedule' | 'none' | null
+}
+
+export interface PhotoAnalysisResult {
+  photo_id: string
+  source: string
+  size: number[]
+  entities: DetectedEntity[]
+  risk_level: Level
+  analysis_failed: boolean
+}
+
+export interface PostAnalysisResult {
+  post_id: string
+  posted_at: string | null
+  caption: string
+  hashtags: string[]
+  selected_candidate_ids: string[]
+  risk_level: Level
+  photos: PhotoAnalysisResult[]
 }
 
 export interface JobStatus {

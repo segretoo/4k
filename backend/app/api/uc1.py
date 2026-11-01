@@ -32,6 +32,7 @@ async def upload(request: Request, file: UploadFile = File(...)) -> UploadRespon
         storage.remove(upload_id)
         raise
     scores = await recommend.screen(posts, request.state.owner_id)
+    instagram.save_posts(folder, posts)
     picked = recommend.pick(posts, scores)
     return UploadResponse(
         upload_id=upload_id,
@@ -74,9 +75,25 @@ def start_job(body: JobCreate, background: BackgroundTasks, request: Request) ->
     selected = list(dict.fromkeys(body.photo_ids))
     if any(pid not in known for pid in selected):
         raise HTTPException(400, "고른 사진 정보가 올바르지 않아요.")
+    candidate_index = {
+        post["post_id"]: {candidate["id"] for candidate in post.get("candidates", [])}
+        for post in posts
+    }
+    for post_id, candidate_ids in (body.candidate_selections or {}).items():
+        if post_id not in candidate_index or any(cid not in candidate_index[post_id] for cid in candidate_ids):
+            raise HTTPException(400, "고른 게시물 단서 정보가 올바르지 않아요.")
+    post_by_id = {post["post_id"]: post for post in posts}
+    for post_id, candidates in (body.manual_candidates or {}).items():
+        post = post_by_id.get(post_id)
+        if not post or any(candidate.value.strip().casefold() not in post.get("caption", "").casefold()
+                           for candidate in candidates):
+            raise HTTPException(400, "직접 추가한 단서가 게시물 글에 포함되어 있지 않아요.")
     for pid in known - set(selected):  # 고르지 않은 사진은 바로 삭제
         (folder / "photos" / f"{pid}.jpg").unlink(missing_ok=True)
-    job_id = jobs.create(body.upload_id, len(selected), request.state.owner_id)
+    job_id = jobs.create(body.upload_id, len(selected), request.state.owner_id,
+                         candidate_selections=body.candidate_selections,
+                         manual_candidates={pid: [c.model_dump() for c in clues]
+                                            for pid, clues in (body.manual_candidates or {}).items()})
     background.add_task(jobs.run, job_id, posts, selected)
     return JobCreated(job_id=job_id, total=len(selected))
 

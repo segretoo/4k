@@ -501,7 +501,8 @@ def infer_sync(image: Image.Image, mask_mode: str, sigma: float, radius: int,
                       [round(x2*width/1000), round(y2*height/1000)],
                       [round(x1*width/1000), round(y2*height/1000)]]
             mapped.append({
-                "type": kind, "text": None,
+                "type": kind,
+                "text": (str(item.get("text"))[:160] if isinstance(item.get("text"), str) and item.get("text").strip() else None),
                 "risk_factors": factors if isinstance(factors, list) else [],
                 "risk_evidence": str(item.get("evidence", ""))[:240],
                 "time_source": time_source,
