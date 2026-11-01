@@ -182,3 +182,16 @@ export interface ServerStatus {
   max_photos: number
   max_zip_mb: number
 }
+
+export interface AuditEvent {
+  at: string
+  event: 'connected' | 'disconnected' | 'zip_uploaded' | 'analysis_completed' | 'analysis_failed' | 'photo_checked' | 'mask_checked' | 'download_started'
+  posts?: number
+  photos?: number
+  detections?: number
+  warnings?: number
+  failed?: number
+  regions?: number
+  residuals?: number
+  fragments?: number
+}

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { errorMessage, maskPhoto } from '../api/client'
+import { errorMessage, maskPhoto, recordDownload } from '../api/client'
 import type { MaskResponse, Region } from '../api/types'
 import RegionPreview from '../components/RegionPreview'
 import { Bottom, Btn, C, ErrorNote, Frame, Header, JUA, Toggle } from '../components/wf'
@@ -15,7 +15,8 @@ interface Item {
 }
 
 /** 가린 사진을 기기에 저장 (게시는 사용자가 직접) */
-function download(dataUrl: string) {
+function download(dataUrl: string, regionCount: number) {
+  void recordDownload(1, regionCount).catch(() => undefined)
   const a = document.createElement('a')
   a.href = dataUrl
   a.download = 'kkokkok_masked.jpg'
@@ -150,7 +151,7 @@ export default function Mask() {
       setMaskedUrl(composite)
       setManualConfirmed(false)
       setLeakConfirmed(false)
-      if (res.rescan_passed && !res.requires_review) download(composite)
+      if (res.rescan_passed && !res.requires_review) download(composite, chosen.length)
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -287,7 +288,7 @@ export default function Mask() {
             </Btn>
           </>
         ) : canDownload ? (
-          <Btn kind="plain" onClick={() => maskedUrl && download(maskedUrl)}>
+          <Btn kind="plain" onClick={() => maskedUrl && download(maskedUrl, chosen.length)}>
             저장 완료 · 다시 받기
           </Btn>
         ) : masked ? (

@@ -5,7 +5,7 @@ import uuid
 from dataclasses import dataclass, field
 
 from app.schemas.contracts import EngineResult, Entity, JobStatus, risk_level
-from app.services import engine, storage
+from app.services import audit, engine, storage
 from app.services.gpu_client import GpuError, get_gpu
 from app.services.gpu_queue import QueueBusy
 
@@ -151,8 +151,15 @@ async def run(job_id: str, posts: list[dict], selected: list[str]) -> None:
             })
         job.result.post_results = output_posts
         job.status = "done"
+        audit.record(
+            "analysis_completed",
+            photos=job.total,
+            detections=sum(len(photo["entities"]) for post in output_posts for photo in post["photos"]),
+            failed=len(failed),
+        )
     except Exception:  # noqa: BLE001 - 사용자에게는 짧은 메시지만
         job.status = "failed"
         job.error = "분석 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요."
+        audit.record("analysis_failed", photos=job.total)
     finally:
         storage.remove(job.upload_id)  # 정상·실패 모두 업로드 폴더 삭제

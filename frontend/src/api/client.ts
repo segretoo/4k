@@ -9,6 +9,7 @@ import type {
   ServerStatus,
   UploadResponse,
   Region,
+  AuditEvent,
 } from './types'
 
 // 같은 주소에서 백엔드가 화면을 제공하므로 상대 경로. 개발 중에는 vite.config.ts 프록시가 넘겨 준다.
@@ -83,4 +84,18 @@ export async function maskPhoto(file: File, regions: Region[]): Promise<MaskResp
   form.append('file', file)
   form.append('meta', JSON.stringify({ regions }))
   return (await http.post<MaskResponse>('/api/uc2/mask', form)).data
+}
+
+export async function getAuditEvents(token: string): Promise<AuditEvent[]> {
+  return (await http.get<{ events: AuditEvent[] }>('/api/admin/audit', {
+    headers: { 'X-Audit-Token': token },
+  })).data.events
+}
+
+export async function recordDownload(photos: number, regions: number): Promise<void> {
+  await http.post('/api/audit/download', { photos, regions })
+}
+
+export async function endSession(): Promise<void> {
+  await http.post('/api/session/end')
 }

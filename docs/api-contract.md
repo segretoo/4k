@@ -84,6 +84,10 @@ The same response is checked in at `data/demo/api/uc2-check-response.json`; its 
 
 The browser scales each crop box from `CheckResponse.image_size` to the locally held original image, composites patch pixels through the alpha mask, and exports a new JPEG locally. Canvas export strips the original EXIF/GPS metadata. If OCR still reads a selected phrase, `leaked` contains the exact recognized OCR line and `retry_regions` contains its text geometry (`id`, `type`, `text`, `box`, `polygon`, `path`) when available. The user can add those suggested areas and rescan, or explicitly confirm proceeding with the current masked image. The same mask API is used for an individually uploaded photo and for a photo reselected after ZIP review.
 
+## Operational audit log
+
+The CPU API records count-only events for anonymous session connect/disconnect, completed ZIP uploads, analyses, photo checks, mask rescans, and download starts. It never records image bytes, OCR/caption text, filenames, IP addresses, session IDs, cookies, or request bodies. JSONL files are stored under `backend/logs` by default with owner-only file permissions and 5 MiB rotation (three backups). The read-only viewer is at `/admin/logs`; configure a random `AUDIT_VIEW_TOKEN` of at least 32 characters in the CPU server `.env` and enter it in the viewer. The token is held only in page memory and sent in a request header, never in a URL or audit record.
+
 ## UC1: past-post review
 
 1. `POST /api/uc1/uploads` with an Instagram export ZIP. The CPU server reads Instagram `posts_*.json` when present, or modern `your_instagram_activity/media/posts_*.html` cards and their linked image members when JSON is absent. It returns `UploadResponse`, thumbnails, extracted hashtags, and CPU-only caption candidates. No GPU inference is used for this first review list.

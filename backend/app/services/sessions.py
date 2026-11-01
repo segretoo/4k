@@ -7,6 +7,7 @@ import secrets
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import settings
+from app.services import audit
 
 COOKIE = "kk.session"
 _key = (settings.session_secret or secrets.token_hex(32)).encode()
@@ -33,9 +34,12 @@ class SessionMiddleware(BaseHTTPMiddleware):
         owner = verify(request.cookies.get(COOKIE, ""))
         fresh = owner is None
         request.state.owner_id = owner or secrets.token_hex(16)
+        request.state.session_valid = not fresh
+        if fresh and request.url.path != "/api/session/end":
+            audit.record("connected")
         response = await call_next(request)
         response.headers["Cache-Control"] = "no-store"
-        if fresh:
+        if fresh and request.url.path != "/api/session/end":
             response.set_cookie(COOKIE, sign(request.state.owner_id), httponly=True,
                                 secure=settings.session_cookie_secure, samesite="strict",
                                 max_age=86400, path="/")

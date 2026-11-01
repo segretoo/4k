@@ -26,4 +26,12 @@ export const session = {
   setConsent: () => write(CONSENT, true),
   clues: () => read<Clue[]>(CLUES, []),
   setClues: (clues: Clue[]) => write(CLUES, clues),
+  clear: () => {
+    try {
+      sessionStorage.removeItem(CONSENT)
+      sessionStorage.removeItem(CLUES)
+    } catch {
+      // Storage can be unavailable in restricted browser contexts.
+    }
+  },
 }

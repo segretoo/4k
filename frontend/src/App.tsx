@@ -8,6 +8,7 @@ import {
 } from "react-router-dom";
 import { session } from "./lib/session";
 import Analyze from "./pages/Analyze";
+import AdminLogs from "./pages/AdminLogs";
 import Cleanup from "./pages/Cleanup";
 import Consent from "./pages/Consent";
 import Draft from "./pages/Draft";
@@ -46,6 +47,7 @@ export default function App() {
       <AppProvider>
         <BrowserRouter>
           <Routes>
+            <Route path="/admin/logs" element={<AdminLogs />} />
             <Route path="/" element={<Landing />} />
             <Route path="/consent" element={<Consent />} />
             <Route path="/privacy" element={<Privacy />} />

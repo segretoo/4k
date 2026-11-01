@@ -23,6 +23,8 @@ class Settings:
     mock_fixture: Path = Path(os.getenv("MOCK_FIXTURE", "../data/demo/mock_gpu.json"))
     session_secret: str = os.getenv("SESSION_SECRET", "")
     session_cookie_secure: bool = _bool("SESSION_COOKIE_SECURE", False)
+    audit_view_token: str = os.getenv("AUDIT_VIEW_TOKEN", "")
+    audit_log_path: Path = Path(os.getenv("AUDIT_LOG_PATH", "logs/audit.jsonl"))
 
     # 분석 수량과 후보 범위
     max_photos: int = int(os.getenv("MAX_PHOTOS", "10"))
