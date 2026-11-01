@@ -50,7 +50,7 @@ cd frontend && npm install && npm run dev     # http://localhost:5173
 - 시연: `data/demo/instagram-demo.zip`을 UC1에 올리고, `data/demo/uc2_demo.jpg`를 UC2에 올립니다.
 - 배포: `cd frontend && npm run build` → 생긴 `frontend/dist/`를 백엔드가 같은 주소로 제공 (`uvicorn app.main:app --host 0.0.0.0 --port 8000`).
 - 진짜 GPU 연결: CPU 서버 `.env`에 `GPU_MOCK=false`, `GPU_URL=http://10.1.2.30:8080`, GPU 서버와 같은 `GPU_API_KEY`를 지정합니다. GPU 서버는 `ml/gpu_server/.env.example`을 참고해 실행하며, 모델 프로세스는 한 개만 띄웁니다.
-- 테스트 기준: 실제 NCP API에서 34장 × 4개 조합을 완료했습니다. 기본 OCR-first 2200px은 양성 장면 30/32, 유효 JSON 33/34, 평균 점검 26.06초·점검+마스킹 33.16초, VLM 입력 토큰 평균 4,613, 최대 예약 VRAM 11.94 GiB였습니다. 1280px OCR-first는 28/32, 점검+마스킹 평균 33.85초, 10.93 GiB였습니다. OCR 해상도는 모두 2200px였고 결과 문자열은 조합 간 같아, 정답 전사 없이 CER/오타율은 계산하지 않았습니다. VLM-first는 전체 세트에서 더 느리고 검출 수가 낮았습니다. 마스킹 후 잔류 문자가 나온 이미지는 UI가 다운로드를 막습니다. 이미지별 보고서와 원본 사진은 Git 밖에 보관합니다.
+- 테스트 기준: 실제 NCP API에서 34장 × 4개 조합을 완료했습니다. 기본 OCR-first 2200px은 양성 장면 30/32, 유효 JSON 33/34, 평균 점검 26.06초·점검+마스킹 33.16초, VLM 입력 토큰 평균 4,613, 최대 예약 VRAM 11.94 GiB였습니다. 1280px OCR-first는 28/32, 점검+마스킹 평균 33.85초, 10.93 GiB였습니다. OCR 해상도는 모두 2200px였고 결과 문자열은 조합 간 같아, 정답 전사 없이 CER/오타율은 계산하지 않았습니다. VLM-first는 전체 세트에서 더 느리고 검출 수가 낮았습니다. 마스킹 후 잔류 문자가 나오면 문구와 위치를 추가 선택 항목으로 제공하며, 사용자가 추가로 가리거나 확인 후 현재 결과로 진행합니다. 이미지별 보고서와 원본 사진은 Git 밖에 보관합니다.
 - 전체 API 데이터 흐름과 분리 배포는 [docs/architecture.md](docs/architecture.md), 정확한 요청·응답 형식은 [docs/api-contract.md](docs/api-contract.md)를 참고합니다.
 - UC1 후보 선택 요청, 게시물별 결과 배열과 외부 직접 연결 설계는 [docs/api-contract.md](docs/api-contract.md), [docs/architecture.md](docs/architecture.md)를 참고합니다.
 - NCP 외부 HTTPS 공개 준비와 필요한 콘솔 설정은 [docs/external-access-runbook.md](docs/external-access-runbook.md)를 참고합니다.
