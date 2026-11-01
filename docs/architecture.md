@@ -75,10 +75,45 @@ The rendezvous option is a later network feature, not part of the current API pr
 
 | Setting | Selected value | 34-image evidence |
 |---|---|---|
-| OCR/model order | OCR-first | 30/32 positive scenes at 2200px; 28/32 at 1280px |
-| OCR/model image edge | 2200px | 26.06s mean check; 4,613 mean input tokens; 11.94 GiB peak reserved; 33/34 VLM JSON parses |
-| OCR/model image edge (lower-memory option) | 1280px | 26.89s mean check; 2,619 mean input tokens; 10.93 GiB peak reserved; 32/34 VLM JSON parses |
-| VLM-first | Not selected | Full 34-image tests: 40.72s/41.19s mean check; 24/32 and 19/32 positive scenes by size |
-| Mask | mean surrounding RGB + 2px dilation + sigma 8 | OCR rescan found residual characters in 7/34–8/34 images; product export blocks those cases |
+| 안전 | `safe` | 단서 없음 |
+| 주의 | `caution` | 단서는 있지만 장소 없음 |
+| 위험 | `high` | 이름 + 장소(`school` 또는 `area`) |
+| 매우 위험 | `very_high` | 이름 + 장소 + `time` |
 
-2200px missed two small bench labels (`04.jpg`, `06.jpg`). OCR stays at 2200px in all four tests, and OCR output was identical across the four profiles; OCR recognition loss/CER cannot be inferred because no exact transcription ground truth exists. VLM-first was slower and found fewer labeled scenes, so OCR-first 2200px is the default. See the private 34-image report and gallery; evaluation photos must not be committed.
+경고 카드 심각도: 매우 위험 조합에 들어가는 단서 = `high`, 위험 조합 = `medium`, 판독 불확실 = `check`.
+
+## 가리기와 안티마스킹 대응
+| 위험 | 대응 |
+|---|---|
+| 모자이크·블러 복원 | 단색만 사용 (불투명 100%) |
+| 반투명·투명 채널 | RGB로 변환해 저장 |
+| EXIF 속 원본 썸네일·GPS | 메타데이터 없이 새 파일로 다시 인코딩 |
+| 원본 위 덮어쓰기 잔여 데이터 | 항상 새 파일로 저장 |
+| 덜 가려짐 | 박스 15~20% 확장 + 최소 크기 |
+| 같은 단서가 다른 곳에 | 연결 엔진·교차 점검 + 재검사 |
+
+## JSON 계약 (변경 시 팀 공유 필수 → `backend/app/schemas/contracts.py`)
+### 판독 + 단서 추출 (게시물 1개)
+```json
+{"post_id": "p03",
+ "caption": "#하늘이 #햇살유치원 첫 등원",
+ "texts": [{"text": "하늘", "box": [159, 128, 207, 158], "conf": null, "source": "image"}],
+ "entities": [
+  {"type": "name", "value": "하늘", "evidence": "image", "box": [159, 128, 207, 158]},
+  {"type": "school", "value": "햇살유치원", "evidence": "caption", "box": null},
+  {"type": "area", "value": "개포동", "evidence": "location_tag", "box": null}]}
+```
+### 연결 엔진
+```json
+{"level": "very_high",
+ "reason": ["name", "school", "time"],
+ "card": {"name": "하늘", "school": "햇살유치원", "time": "08:40"},
+ "sources": {"school": ["p03", "p11"]},
+ "cleanup": ["p03", "p07", "p11"],
+ "level_after_cleanup": "caution",
+ "warnings": [{"type": "time", "severity": "high", "why": "이름·유치원과 합쳐져 매우 위험", "action": "시간 표현 빼기"}]}
+```
+### 가리기 결과
+```json
+{"file": "masked_p03.jpg", "rescan_passed": true, "leaked": [], "meta_clean": true}
+```
