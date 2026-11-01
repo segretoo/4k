@@ -120,6 +120,7 @@ def _to_front_contract(result: dict[str, Any], photo_id: str) -> dict[str, Any]:
             "type": entity_type, "value": value, "evidence": "image", "box": box,
             "polygon": polygon or None, "path": loc.get("path"),
             "why": str(item.get("risk_evidence") or "사진 속 위치 단서"),
+            "time_source": item.get("time_source", "none"),
         })
     for clue in result.get("caption_clues", []):
         entities.append({"type": clue["type"], "value": clue["value"], "evidence": "caption",

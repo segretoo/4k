@@ -32,7 +32,7 @@ def build(result: AnalyzeResult, caption: str, prior: list[Clue], image_size: tu
     for e in result.entities:
         if e.box:
             regions.append(Region(id=f"r{len(regions) + 1}", type=e.type, text=e.value, box=e.box,
-                                  polygon=e.polygon, path=e.path))
+                                  polygon=e.polygon, path=e.path, time_source=e.time_source))
     known = {tuple(r.box) for r in regions}
     for t in result.texts:  # 단서로 판단되지 않았지만 읽힌 글자 = 확인 필요
         if t.box and tuple(t.box) not in known and t.source != "caption" and (t.conf is not None and t.conf < 0.6):

@@ -79,6 +79,7 @@ export interface Region {
   box: Box
   polygon?: Polygon | null
   path?: string | null
+  time_source?: 'analog_clock' | 'digital_clock' | 'text_timestamp' | 'schedule' | 'none' | null
 }
 
 export interface Warning {

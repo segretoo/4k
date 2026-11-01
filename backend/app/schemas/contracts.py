@@ -45,6 +45,7 @@ class Entity(BaseModel):
     polygon: Optional[Polygon] = None
     path: Optional[str] = None
     why: str = ""
+    time_source: Optional[Literal["analog_clock", "digital_clock", "text_timestamp", "schedule", "none"]] = None
 
 
 class Clue(BaseModel):
@@ -156,6 +157,7 @@ class Region(BaseModel):
     box: Box
     polygon: Optional[Polygon] = None
     path: Optional[str] = None
+    time_source: Optional[Literal["analog_clock", "digital_clock", "text_timestamp", "schedule", "none"]] = None
 
 
 class Warning(BaseModel):

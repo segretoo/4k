@@ -139,6 +139,55 @@ def parse_json(raw: str):
     return result
 
 
+def ensure_ocr_school_and_time_candidates(parsed: dict, ocr_lines: list[dict]) -> list[str]:
+    """Retain high-value OCR clues even when the VLM risk pass overlooks them."""
+    items = parsed.setdefault("risk_items", [])
+    covered_school = {
+        str(ocr_id)
+        for item in items if isinstance(item, dict)
+        and item.get("type") in {"school_or_org", "banner"}
+        for ocr_id in (item.get("ocr_ids") or [])
+    }
+    covered_time = {
+        str(ocr_id)
+        for item in items if isinstance(item, dict) and item.get("type") == "schedule"
+        for ocr_id in (item.get("ocr_ids") or [])
+    }
+    added = []
+    school_terms = ("초등학교", "초등", "초교", "중학교", "중등", "고등학교",
+                    "고등", "유치원", "어린이집", "태권도장", "태권도", "학원")
+    time_pattern = re.compile(r"(?:오전|오후)?\s*\d{1,2}\s*(?::|：|시)\s*\d{1,2}\s*(?:분)?")
+    for line in ocr_lines:
+        text = str(line.get("text", ""))
+        ocr_id = str(line.get("id", ""))
+        if not ocr_id:
+            continue
+        compact = re.sub(r"\s+", "", text)
+        is_school = any(term in compact for term in school_terms)
+        is_time = bool(time_pattern.search(text))
+        if (is_school and ocr_id in covered_school) or (is_time and ocr_id in covered_time):
+            continue
+        if not (is_school or is_time):
+            continue
+        items.insert(0, {
+            "type": "school_or_org" if is_school else "schedule",
+            "ocr_ids": [ocr_id], "bbox": None,
+            "time_source": "none" if is_school else "text_timestamp",
+            "risk_factors": ["organization", "specific_place"] if is_school else ["time_or_schedule"],
+            "person_link": "possible" if is_school else "none",
+            "place_link": "possible" if is_school else "none",
+            "time_link": "possible" if is_time else "none",
+            "evidence": "교육기관 표기가 있는 OCR 줄" if is_school else "시각 형식의 OCR 줄",
+            "confidence": "medium",
+        })
+        if is_school:
+            covered_school.add(ocr_id)
+        if is_time:
+            covered_time.add(ocr_id)
+        added.append(ocr_id)
+    return added
+
+
 def polygon_bbox(points):
     xs, ys = zip(*points)
     return [min(xs), min(ys), max(xs), max(ys)]
@@ -192,6 +241,8 @@ def infer_sync(image: Image.Image, mask_mode: str, sigma: float, radius: int,
     if precomputed_ocr_lines is not None and precomputed_ocr_seconds is not None:
         stage_times["ocr_seconds"] = round(float(precomputed_ocr_seconds), 3)
     candidates = "(no OCR text detected)"
+    visual_candidates = []
+    candidate_lines = {}
     if PIPELINE_ORDER == "ocr_first":
         if precomputed_ocr_lines is None:
             ocr_image = source.copy()
@@ -257,17 +308,19 @@ def infer_sync(image: Image.Image, mask_mode: str, sigma: float, radius: int,
             stage_times["ocr_seconds"] = round(time.perf_counter() - stage_started, 3)
         inventory = []
         width_f, height_f = source.size
-        candidate_lines = {}
         for index, candidate in enumerate(visual_candidates, 1):
             box = candidate.get("bbox") if isinstance(candidate, dict) else None
             if (not isinstance(box, list) or len(box) != 4 or
                     any(not isinstance(v, (int, float)) or not 0 <= v <= 1000 for v in box)):
                 continue
             x1, y1, x2, y2 = box
+            source_kind = str(candidate.get("time_source", "none"))
             # Candidate boxes are used only to associate OCR polygons here,
             # never as the final mask when OCR text is available. Allow a
             # slightly wider text-line proposal than the final 1% mask cap.
-            if x1 >= x2 or y1 >= y2 or ((x2-x1)*(y2-y1))/1_000_000 > 0.03:
+            candidate_area = ((x2-x1)*(y2-y1))/1_000_000
+            max_candidate_area = 0.06 if source_kind in {"analog_clock", "digital_clock"} else 0.03
+            if x1 >= x2 or y1 >= y2 or candidate_area > max_candidate_area:
                 continue
             cid = f"C{index}"
             line_ids = []
@@ -277,10 +330,11 @@ def infer_sync(image: Image.Image, mask_mode: str, sigma: float, radius: int,
                 cx = sum(p[0] for p in poly) / len(poly) * 1000 / width_f
                 cy = sum(p[1] for p in poly) / len(poly) * 1000 / height_f
                 if x1 <= cx <= x2 and y1 <= cy <= y2:
-                    line_ids.append(line["id"])
                     line_text.append(f"{line['id']} | {line['score']:.2f} | {line['text'][:160]}")
-            candidate_lines[cid] = {"bbox": box, "ocr_ids": line_ids}
-            inventory.append(f"{cid} | bbox={box} | OCR=" + ("; ".join(line_text) or "none"))
+                    if source_kind not in {"analog_clock", "digital_clock"}:
+                        line_ids.append(line["id"])
+            candidate_lines[cid] = {"bbox": box, "ocr_ids": line_ids, "time_source": source_kind}
+            inventory.append(f"{cid} | bbox={box} | time_source={source_kind} | OCR=" + ("; ".join(line_text) or "none"))
         inventory_text = "\n".join(inventory) or "(visual candidate scan returned no valid regions)"
         stage_started = time.perf_counter()
         raw, risk_input_tokens = ask_vlm(
@@ -293,6 +347,27 @@ def infer_sync(image: Image.Image, mask_mode: str, sigma: float, radius: int,
         parsed = parse_json(raw)
     except (ValueError, json.JSONDecodeError) as exc:
         parsed, parse_error = {"risk_items": []}, str(exc)
+
+    auto_added_ocr_ids = ensure_ocr_school_and_time_candidates(parsed, ocr_lines)
+    auto_added_clock_candidates = []
+    if PIPELINE_ORDER == "vlm_first":
+        evaluated_candidates = {
+            str(cid)
+            for item in parsed["risk_items"] if isinstance(item, dict)
+            for cid in (item.get("candidate_ids") or [])
+        }
+        for cid, entry in candidate_lines.items():
+            source_kind = entry.get("time_source")
+            if source_kind not in {"analog_clock", "digital_clock"} or cid in evaluated_candidates:
+                continue
+            parsed["risk_items"].insert(0, {
+                "type": "schedule", "candidate_ids": [cid], "ocr_ids": [],
+                "bbox": entry["bbox"], "time_source": source_kind,
+                "risk_factors": ["time_or_schedule"],
+                "person_link": "none", "place_link": "none", "time_link": "possible",
+                "evidence": "시계 후보의 위험 검토 누락; 확인 필요", "confidence": "low",
+            })
+            auto_added_clock_candidates.append(cid)
 
     if PIPELINE_ORDER == "vlm_first":
         pass
@@ -330,7 +405,13 @@ def infer_sync(image: Image.Image, mask_mode: str, sigma: float, radius: int,
                         ids = entry["ocr_ids"]
                     if not item.get("bbox"):
                         item["bbox"] = entry["bbox"]
-        if not ids and PIPELINE_ORDER == "vlm_first":
+                    if item.get("time_source") in (None, "none") and entry.get("time_source") in {"analog_clock", "digital_clock"}:
+                        item["time_source"] = entry["time_source"]
+                    if entry.get("time_source") in {"analog_clock", "digital_clock"}:
+                        ids = []
+                        item["bbox"] = entry["bbox"]
+        if (not ids and PIPELINE_ORDER == "vlm_first" and
+                item.get("time_source") not in {"analog_clock", "digital_clock"}):
             # Match OCR lines found after visual candidate discovery. Use their
             # original-coordinate polygon whenever a line lies in the candidate.
             box = item.get("bbox")
@@ -388,6 +469,7 @@ def infer_sync(image: Image.Image, mask_mode: str, sigma: float, radius: int,
                     "ocr_score": line["score"],
                     "risk_factors": list(map(str, factors)),
                     "risk_evidence": str(item.get("evidence", ""))[:240],
+                    "time_source": item.get("time_source", "text_timestamp" if kind == "schedule" else "none"),
                     "location_in_image": {
                         "coordinate_space": "oriented_original_pixels",
                         "image_width": width, "image_height": height,
@@ -409,8 +491,10 @@ def infer_sync(image: Image.Image, mask_mode: str, sigma: float, radius: int,
             if x1 >= x2 or y1 >= y2:
                 rejected.append({"index": idx, "reason": "empty bbox"})
                 continue
-            if ((x2-x1) * (y2-y1)) / 1_000_000 > 0.01:
-                rejected.append({"index": idx, "reason": "object bbox exceeds 1% of image; split it into narrow text-line boxes"})
+            time_source = str(item.get("time_source", "none"))
+            max_mask_area = 0.06 if kind == "schedule" and time_source in {"analog_clock", "digital_clock"} else 0.01
+            if ((x2-x1) * (y2-y1)) / 1_000_000 > max_mask_area:
+                rejected.append({"index": idx, "reason": f"object bbox exceeds allowed area ({max_mask_area:.0%}); tighten the box"})
                 continue
             points = [[round(x1*width/1000), round(y1*height/1000)],
                       [round(x2*width/1000), round(y1*height/1000)],
@@ -420,6 +504,7 @@ def infer_sync(image: Image.Image, mask_mode: str, sigma: float, radius: int,
                 "type": kind, "text": None,
                 "risk_factors": factors if isinstance(factors, list) else [],
                 "risk_evidence": str(item.get("evidence", ""))[:240],
+                "time_source": time_source,
                 "location_in_image": {
                     "coordinate_space": "oriented_original_pixels",
                     "image_width": width, "image_height": height,
@@ -490,6 +575,7 @@ def infer_sync(image: Image.Image, mask_mode: str, sigma: float, radius: int,
         "image_size": {"width": width, "height": height},
         "ocr_lines": ocr_lines,
         "risk_items": mapped,
+        "ocr_candidate_fallback_ids": auto_added_ocr_ids,
         "caption_clues": [item for item in caption_clues[:32]
                           if isinstance(item, dict)
                           and item.get("type") in {"name", "age", "school", "area", "time", "contact"}
@@ -500,9 +586,11 @@ def infer_sync(image: Image.Image, mask_mode: str, sigma: float, radius: int,
         "photo_risk_hint": photo_risk_hint,
         "rejected_model_items": rejected,
         "excluded_non_location_notices": excluded_notices,
-        "requires_review": bool(parsed.get("requires_review", False) or parse_error or rejected or not mapped),
+        "requires_review": bool(parsed.get("requires_review", False) or parse_error or rejected or auto_added_ocr_ids or auto_added_clock_candidates or not mapped),
         "review_reasons": ([parse_error] if parse_error else []) +
                           (["Model requested human review."] if parsed.get("requires_review", False) else []) +
+                          (["OCR safety-net added school or time candidates; verify their context."] if auto_added_ocr_ids else []) +
+                          (["Visual clock candidate was missing from risk review; inspect the clock mask."] if auto_added_clock_candidates else []) +
                           (["One or more model boxes were rejected; inspect detections."] if rejected else []) +
                           (["No risk regions returned; empty is not proof of safety."] if not mapped else []),
         "mask_mode": mask_mode,
