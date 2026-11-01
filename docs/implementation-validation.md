@@ -13,7 +13,7 @@
 
 The 68 renders are **not fresh OCR or VLM calls**. They verify geometry, masking, and alpha composition with the complete stored 34-image set. The browser smoke exercised the real GPU through the CPU API; it used one synthetic image and verifies the product integration, not recognition quality. The separate real API matrix used 34 distinct photos per condition; two interrupted rows were retried and all four conditions completed.
 
-The CPU frontend/API and GPU adapter are deployed on private NCP hosts. The CPU API reports `gpu_mock=false` and `gpu_ok=true`; the GPU health route reports ready. External internet access is intentionally deferred. The full-set OCR-first and VLM-first results are summarized here; the earlier pilot table in [evaluation-2026-10-31.md](evaluation-2026-10-31.md) predates the completed matrix.
+The CPU frontend/API and GPU adapter are deployed on private NCP hosts. The CPU API reports `gpu_mock=false` and `gpu_ok=true`; the GPU health route reports ready. External internet access is intentionally deferred. The full-set OCR-first and VLM-first results are summarized here.
 
 | Condition | Positive scenes | Valid VLM JSON | Mean check | Mean check + mask | Mean VLM input tokens | Peak reserved VRAM |
 |---|---:|---:|---:|---:|---:|---:|

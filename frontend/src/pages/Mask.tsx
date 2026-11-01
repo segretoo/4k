@@ -295,7 +295,7 @@ export default function Mask() {
       {error && <ErrorNote>{error}</ErrorNote>}
 
       <Bottom sticky>
-        {masked ? (
+        {canDownload ? (
           <Btn kind="plain" onClick={() => download(maskedUrl!)}>
             저장 완료 · 다시 받기
           </Btn>

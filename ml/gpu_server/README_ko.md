@@ -1,6 +1,6 @@
 # Qwen3.5-4B BF16 + PP-OCRv5 GPU service
 
-제품 계약은 [api-contract.md](../../docs/api-contract.md), 서버별 역할은 [architecture.md](../../docs/architecture.md), 이전 34장 실측은 [evaluation-2026-10-31.md](../../docs/evaluation-2026-10-31.md)를 참고하세요.
+제품 계약은 [api-contract.md](../../docs/api-contract.md), 서버별 역할은 [architecture.md](../../docs/architecture.md), 34장 실측은 [implementation-validation.md](../../docs/implementation-validation.md)를 참고하세요.
 
 기본값은 PP-OCRv5 2200px → Qwen3.5-4B BF16 2200px 위험 단서 검토입니다. OCR ID를 원본 polygon으로 연결하고, OCR에서 놓친 글자는 좁은 VLM 상자로 검토합니다. 빈 결과·JSON 오류·VLM 위치만 있는 결과는 사용자 확인 대상으로 표시합니다. 프롬프트는 [prompts.py](prompts.py)에 있습니다.
 
@@ -32,7 +32,7 @@ bash run_api.sh
 
 ## CPU 서버 연결
 
-CPU 서버 `.env`에 `GPU_MOCK=false`, `GPU_URL=http://10.1.2.30:8080`, 같은 비밀값의 `GPU_API_KEY`를 설정하세요. 8080 포트는 CPU 서버에서만 접근하도록 제한합니다.
+CPU 서버 `.env`에 `GPU_MOCK=false`, `GPU_URL=http://<GPU 내부 IP>:8080`, 같은 비밀값의 `GPU_API_KEY`를 설정하세요. 8080 포트는 CPU 서버에서만 접근하도록 제한합니다.
 
 | 제품 경로 | 역할 |
 |---|---|
