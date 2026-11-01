@@ -74,7 +74,7 @@ export default function Upload() {
 
   return (
     <Frame>
-      <Header title="지난 게시물 점검" back="/" step={[1, 3]} />
+      <Header title="게시물 건강검진" back="/" step={[1, 3]} />
       <Heading lines={['지난 게시물을', '한 번에 점검해요']} sub="인스타그램 내보내기 파일을 올려 주세요. 건강검진처럼 처음 한 번만 하면 돼요." />
 
       <ol

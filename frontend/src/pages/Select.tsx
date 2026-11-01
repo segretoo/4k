@@ -40,7 +40,7 @@ export default function Select() {
 
   return (
     <Frame>
-      <Header title="지난 게시물 점검" back="/uc1/upload" step={[2, 3]} />
+      <Header title="게시물 건강검진" back="/uc1/upload" step={[2, 3]} />
       <Heading
         lines={['점검할 사진을', '골라 주세요']}
         sub={`게시물 ${uc1.upload.total_posts}개를 찾았어요. 캡션에 단서가 보이는 사진과 최근 사진을 먼저 골라 뒀어요.`}

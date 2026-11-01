@@ -56,7 +56,7 @@ export default function Draft() {
   if (!c || !uc2.previewUrl) {
     return (
       <Frame gap={12}>
-        <Header title="올리기 전 진단" back="/" />
+        <Header title="올리기 전 체크" back="/" />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <h1 style={{ margin: 0, fontFamily: JUA, fontWeight: 400, fontSize: 25, lineHeight: 1.3 }}>
             올리기 전에
@@ -67,7 +67,7 @@ export default function Draft() {
             {from
               ? `'${from}' 게시물의 원본 사진을 골라 주세요. 캡션은 채워 뒀어요.`
               : prior.length
-                ? '지난 게시물 점검 결과와 이어서 봐요.'
+                ? '게시물 건강검진 결과와 이어서 봐요.'
                 : '이 사진과 캡션만으로 진단해요.'}
           </p>
         </div>
@@ -125,7 +125,7 @@ export default function Draft() {
   const added = c.added.map((t) => TYPE_LABEL[t])
   return (
     <Frame gap={12}>
-      <Header title="올리기 전 진단" back="/" />
+      <Header title="올리기 전 체크" back="/" />
 
       {c.requires_review && (
         <div role="status" style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 12px', background: '#FEF3C7', border: `3px solid ${C.ink}`, borderRadius: 12, fontSize: 13, lineHeight: 1.5 }}>
@@ -186,7 +186,7 @@ export default function Draft() {
 
       <span style={{ fontSize: 11, color: C.sub }}>위험 단계는 단서 조합 규칙으로 계산해요 · 이름+장소 = 위험, +시간 = 매우 위험</span>
 
-      <Bottom>
+      <Bottom sticky>
         {c.warnings.length > 0 ? (
           <Btn onClick={() => nav('/uc2/mask')}>가리고 수정하기</Btn>
         ) : (

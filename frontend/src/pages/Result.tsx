@@ -28,7 +28,7 @@ export default function Result() {
 
   return (
     <Frame gap={12}>
-      <Header title="지난 게시물 점검" back="/" step={[2, 3]} />
+      <Header title="게시물 건강검진" back="/" step={[2, 3]} />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         <span style={{ fontSize: 14, color: C.sub }}>게시물 {r.analyzed_posts}개를 이어 보면</span>
@@ -164,7 +164,7 @@ export default function Result() {
               {LEVEL_LABEL[r.level_after_cleanup!]}로 내려가요
             </>
           ) : r.level === 'safe' ? (
-            '지금은 정리할 게시물이 없어요. 새 게시물도 올리기 전에 확인해 보세요.'
+            '지금은 정리할 게시물이 없어요. 새 게시물은 올리기 전 체크로 확인해 보세요.'
           ) : (
             '이름과 장소가 이어지지 않아 정리할 게시물은 없어요.'
           )}
@@ -172,7 +172,7 @@ export default function Result() {
       </div>
 
       <Bottom gap={0} style={{ marginTop: 0 }}>
-        {canClean ? <Btn to="/uc1/cleanup">정리할 게시물 보기</Btn> : <Btn to="/uc2">올리기 전에 확인하기</Btn>}
+        {canClean ? <Btn to="/uc1/cleanup">정리할 게시물 보기</Btn> : <Btn to="/uc2">올리기 전 체크하기</Btn>}
       </Bottom>
     </Frame>
   )

@@ -6,7 +6,7 @@ from app.config import settings
 from app.schemas.contracts import JobCreate, JobCreated, JobStatus, UploadResponse
 from app.services import instagram, jobs, recommend, storage
 
-router = APIRouter(prefix="/api/uc1", tags=["UC1 지난 게시물 점검"])
+router = APIRouter(prefix="/api/uc1", tags=["UC1 게시물 건강검진"])
 CHUNK = 1024 * 1024
 
 
