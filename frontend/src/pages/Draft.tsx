@@ -127,6 +127,14 @@ export default function Draft() {
     <Frame gap={12}>
       <Header title="올리기 전 체크" back="/" />
 
+      {c.requires_review && (
+        <div role="status" style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 12px', background: '#FEF3C7', border: `3px solid ${C.ink}`, borderRadius: 12, fontSize: 13, lineHeight: 1.5 }}>
+          <b style={{ fontFamily: JUA, fontWeight: 400, fontSize: 15 }}>자동 판독만으로 안전 여부를 확정하기 어려워요.</b>
+          <span>표지판·간판이나 읽히지 않은 글자가 놓쳤을 수 있어 사진을 직접 확인해 주세요.</span>
+          {c.review_reasons.length > 0 && <span style={{ color: C.sub }}>{c.review_reasons.join(' · ')}</span>}
+        </div>
+      )}
+
       <RegionPreview src={uc2.previewUrl} size={c.image_size} regions={c.regions} mode="check" caption={c.regions.length ? '' : '사진에서 단서를 찾지 못했어요'} />
 
       <Panel style={{ gap: 8, padding: '12px 14px' }}>
@@ -140,7 +148,7 @@ export default function Draft() {
           ) : c.warnings.length ? (
             '새로 더해지는 단서는 없어요.'
           ) : (
-            '아이를 특정할 단서가 보이지 않아요.'
+            c.requires_review ? '자동 판독에서 단서를 확정하지 못했어요. 사진을 직접 확인해 주세요.' : '아이를 특정할 단서가 보이지 않아요.'
           )}
         </span>
       </Panel>

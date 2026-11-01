@@ -9,6 +9,7 @@ from pathlib import Path, PurePosixPath
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.config import settings
+from app.services.text_rules import extract_hashtags
 
 POSTS_JSON_RE = re.compile(r"(^|/)posts_\d+\.json$")
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp"}
@@ -140,6 +141,7 @@ def extract(zip_path: Path, dest: Path) -> list[dict]:
                         "post_id": post_id,
                         "posted_at": _posted_at(ts_of(p)),
                         "caption": caption,
+                        "hashtags": extract_hashtags(caption),
                         "photos": photos,
                     }
                 )
@@ -153,3 +155,10 @@ def extract(zip_path: Path, dest: Path) -> list[dict]:
 
 def load_posts(dest: Path) -> list[dict]:
     return json.loads((dest / "posts.json").read_text(encoding="utf-8"))
+
+
+def save_posts(dest: Path, posts: list[dict]) -> None:
+    path = dest / "posts.json"
+    temp_path = dest / "posts.json.tmp"
+    temp_path.write_text(json.dumps(posts, ensure_ascii=False), encoding="utf-8")
+    temp_path.replace(path)

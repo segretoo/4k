@@ -1,0 +1,14 @@
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+python-multipart>=0.0.9
+python-dotenv>=1
+pillow>=10
+numpy>=1.26
+opencv-python-headless==5.0.0.93
+requests>=2.31
+httpx>=0.27
+transformers>=5.10,<6
+accelerate>=1
+# Torch must match the server CUDA stack. Default model mode is BF16.
+# For LOAD_4BIT=true only, install bitsandbytes to match the server's CUDA stack.
+# PaddlePaddle + PaddleOCR are version/CUDA dependent; see README_ko.md.

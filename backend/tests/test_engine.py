@@ -45,3 +45,12 @@ def test_caption_edits_split_clues():
     edits = caption_edits(AnalyzeResult(photo_id="p", texts=[], entities=caption_entities(cap)), cap)
     assert [(e.type, e.text) for e in edits] == [("time", "8시 40분에"), ("name", "#하늘이")]
     assert apply_edits(cap, [e.text for e in edits]) == "오늘도 등원 완료"
+
+
+def test_caption_contact_candidates():
+    from app.services.text_rules import caption_entities, keyword_hints
+
+    cap = "등원 완료 010-1234-5678 parent@example.com #개포동"
+    entities = caption_entities(cap)
+    assert {e.type for e in entities} >= {"contact", "area"}
+    assert "연락처" in keyword_hints(cap)

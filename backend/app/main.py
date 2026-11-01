@@ -12,6 +12,7 @@ from app.api import uc1, uc2
 from app.config import settings
 from app.services import jobs, storage
 from app.services.gpu_client import get_gpu
+from app.services.sessions import SessionMiddleware
 
 # 캡션·판독 글자·파일명은 로그에 남기지 않는다 (접근 로그도 경로만)
 logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
@@ -26,6 +27,8 @@ async def _sweeper() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if not settings.gpu_mock and len(settings.session_secret) < 32:
+        raise RuntimeError("Set a private SESSION_SECRET of at least 32 characters")
     storage.reset_all()  # 서버 재시작 시 임시 폴더 비우기
     task = asyncio.create_task(_sweeper())
     yield
@@ -35,6 +38,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="꼭꼭 API", version="0.1.0", lifespan=lifespan)
+app.add_middleware(SessionMiddleware)
 app.include_router(uc1.router)
 app.include_router(uc2.router)
 
@@ -52,6 +56,11 @@ async def status() -> dict:
         "max_photos": settings.max_photos,
         "max_zip_mb": settings.max_zip_mb,
     }
+
+
+@app.get("/api/session")
+def session_ready() -> dict:
+    return {"ready": True}
 
 
 # ---- React 빌드 제공 (frontend/dist가 있을 때만) ----

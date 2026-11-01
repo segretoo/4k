@@ -1,23 +1,20 @@
 """점검할 사진 추천: 캡션 글자만 GPU(Qwen)로 보내 점수를 받고, 단서가 있는 게시물 → 최근순으로 채운다."""
 from app.config import settings
-from app.schemas.contracts import PhotoSummary, PostSummary, ScreenResult
-from app.services.gpu_client import GpuError, get_gpu
-from app.services.text_rules import keyword_hints
+from app.schemas.contracts import CaptionCandidate, PhotoSummary, PostSummary, ScreenResult
+from app.services.text_rules import caption_candidates, extract_hashtags, keyword_hints
 
 
-async def screen(posts: list[dict]) -> dict[str, ScreenResult]:
-    """GPU가 실패하면 단어 규칙으로 대신한다 (추천은 순서만 정하므로 틀려도 사용자가 고칠 수 있음)."""
-    targets = [{"post_id": p["post_id"], "caption": p["caption"]} for p in posts[: settings.max_screen_captions] if p["caption"]]
+async def screen(posts: list[dict], owner_id: str = "") -> dict[str, ScreenResult]:
+    """Cheap CPU-only candidate pass; full OCR/VLM is deferred until user confirms photos."""
     results: dict[str, ScreenResult] = {}
-    if targets:
-        try:
-            results = {r.post_id: r for r in await get_gpu().screen_captions(targets)}
-        except GpuError:
-            results = {}
     for p in posts:
-        if p["post_id"] not in results:
-            hints = keyword_hints(p["caption"])
-            results[p["post_id"]] = ScreenResult(post_id=p["post_id"], score=min(1.0, 0.25 * len(hints)), hints=hints)
+        hints = keyword_hints(p.get("caption", ""))
+        clues = caption_candidates(p.get("caption", ""), p["post_id"])
+        # Score only orders the review list; it does not make a safety decision.
+        score = min(1.0, 0.2 * len(clues) + 0.1 * len(hints))
+        p["hashtags"] = p.get("hashtags") or extract_hashtags(p.get("caption", ""))
+        p["candidates"] = clues
+        results[p["post_id"]] = ScreenResult(post_id=p["post_id"], score=score, hints=hints)
     return results
 
 
@@ -49,6 +46,8 @@ def summaries(upload_id: str, posts: list[dict], scores: dict[str, ScreenResult]
                 post_id=p["post_id"],
                 posted_at=p["posted_at"],
                 caption=p["caption"],
+                hashtags=p.get("hashtags", extract_hashtags(p.get("caption", ""))),
+                candidates=[CaptionCandidate(**c) for c in p.get("candidates", [])],
                 photos=[
                     PhotoSummary(photo_id=ph["photo_id"], thumb_url=f"/api/uc1/uploads/{upload_id}/thumbs/{ph['photo_id']}")
                     for ph in p["photos"]

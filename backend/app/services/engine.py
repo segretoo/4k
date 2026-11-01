@@ -13,8 +13,8 @@ from app.schemas.contracts import (
     risk_level,
 )
 
-TYPE_LABEL = {"name": "이름", "age": "나이", "school": "유치원", "area": "동네", "time": "등원 시간"}
-TYPE_ORDER = ["name", "age", "school", "area", "time"]
+TYPE_LABEL = {"name": "이름", "age": "나이", "school": "학교·소속", "area": "장소", "time": "시간·일정", "contact": "연락처"}
+TYPE_ORDER = ["name", "age", "school", "area", "time", "contact"]
 MAX_CLEANUP = 5  # 최소 정리로 추천할 게시물 수 상한
 
 

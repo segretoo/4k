@@ -13,13 +13,14 @@ export const LEVEL_LABEL: Record<Level, string> = {
 export const TYPE_LABEL: Record<RegionType, string> = {
   name: '이름',
   age: '나이',
-  school: '유치원',
-  area: '동네',
-  time: '등원 시간',
+  school: '학교·소속',
+  area: '장소',
+  time: '시간·일정',
+  contact: '연락처',
   unreadable: '읽을 수 없는 글자',
 }
 
-export const TYPE_ORDER: EntityType[] = ['name', 'age', 'school', 'area', 'time']
+export const TYPE_ORDER: EntityType[] = ['name', 'age', 'school', 'area', 'time', 'contact']
 
 export function formatDate(iso: string | null): string {
   if (!iso) return ''
@@ -28,4 +29,4 @@ export function formatDate(iso: string | null): string {
 }
 
 /** 단서 종류별 픽셀 아이콘 (와이어프레임 결과 카드와 같음) */
-export const CLUE_ICON: Record<EntityType, PixelName> = { name: 'nameTag', age: 'cake', school: 'school', area: 'house', time: 'clock' }
+export const CLUE_ICON: Record<EntityType, PixelName> = { name: 'nameTag', age: 'cake', school: 'school', area: 'house', time: 'clock', contact: 'nameTag' }

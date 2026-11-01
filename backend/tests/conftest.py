@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -8,7 +9,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 os.environ.setdefault("GPU_MOCK", "true")
 os.environ.setdefault("MOCK_DELAY_S", "0")
-os.environ.setdefault("TMP_DIR", str(Path("/tmp") / "kkokkok-test"))
+os.environ.setdefault("TMP_DIR", str(Path(tempfile.gettempdir()) / "kkokkok-test"))
 os.environ.setdefault("MOCK_FIXTURE", str(ROOT / "data" / "demo" / "mock_gpu.json"))
 os.environ.setdefault("FRONTEND_DIST", str(ROOT / "frontend" / "__no_dist__"))
 
