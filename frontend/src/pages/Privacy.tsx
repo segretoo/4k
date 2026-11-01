@@ -1,7 +1,10 @@
 import type { ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { endSession, errorMessage } from '../api/client'
 import type { PixelName } from '../components/pixels'
-import { Bottom, Btn, C, Frame, JUA, Px } from '../components/wf'
+import { Bottom, Btn, C, ErrorNote, Frame, JUA, Px } from '../components/wf'
+import { session } from '../lib/session'
 
 // 문구는 실제 구현과 같아야 한다 (docs/data-policy.md 10번). 구현을 바꾸면 여기도 같이 고친다.
 const SECTIONS: [PixelName, string, ReactNode][] = [
@@ -9,7 +12,7 @@ const SECTIONS: [PixelName, string, ReactNode][] = [
     'photo',
     '무엇을 읽나요',
     <>
-      <b>게시물 건강검진:</b> 인스타그램 내보내기 zip 안의 게시물 목록(posts_*.json)과 사진만 꺼내요. 캡션·게시 날짜를 함께 읽어요. DM·댓글·팔로워·프로필 같은 다른 파일은 열지 않고 압축도 풀지 않아요.
+      <b>게시물 건강검진:</b> 인스타그램 내보내기 zip 안의 게시물 목록(posts_*.json 또는 posts*.html)과 사진만 꺼내요. 캡션·게시 날짜를 함께 읽어요. DM·댓글·팔로워·프로필 같은 다른 파일은 열지 않고 분석하지 않아요.
       <br />
       <b>올리기 전 체크:</b> 고른 사진 1장과 입력한 캡션만 받아요.
     </>,
@@ -32,7 +35,7 @@ const SECTIONS: [PixelName, string, ReactNode][] = [
   [
     'lock',
     '결과는 어디에 남나요',
-    '결과와 찾은 단서는 지금 쓰는 브라우저 탭에만 있고, 탭을 닫으면 사라져요. 서버 기록(로그)에는 사진·캡션·읽은 글자를 남기지 않아요.',
+    '결과와 찾은 단서는 지금 쓰는 브라우저 탭에만 있고, 탭을 닫으면 사라져요. 앱 운영 로그에는 연결 이벤트의 시각과 업로드·검출·다운로드 개수만 남기며, 사진·캡션·읽은 글자·파일명·IP·세션 ID는 남기지 않아요.',
   ],
   [
     'noEntry',
@@ -48,6 +51,18 @@ const SECTIONS: [PixelName, string, ReactNode][] = [
 
 export default function Privacy() {
   const nav = useNavigate()
+  const [error, setError] = useState<string | null>(null)
+  const [ended, setEnded] = useState(false)
+  const disconnect = async () => {
+    setError(null)
+    try {
+      await endSession()
+      session.clear()
+      setEnded(true)
+    } catch (e) {
+      setError(errorMessage(e))
+    }
+  }
   return (
     <Frame gap={14}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 44 }}>
@@ -103,10 +118,18 @@ export default function Privacy() {
         시연에는 실제 아이 사진이 아닌 합성 이미지와 가상 이름·유치원·동네만 써요.
       </p>
 
+      <Link to="/admin/logs" style={{ fontSize: 13, color: C.sub, textDecoration: 'underline' }}>운영 로그 보기</Link>
+      {error && <ErrorNote>{error}</ErrorNote>}
+
       <Bottom>
-        <Btn kind="plain" onClick={() => nav(-1)}>
-          확인했어요
-        </Btn>
+        {ended ? (
+          <Btn kind="plain" onClick={() => nav('/')}>연결이 해제됐어요 · 홈으로</Btn>
+        ) : (
+          <>
+            <Btn kind="plain" onClick={() => nav(-1)}>확인했어요</Btn>
+            <Btn kind="light" onClick={disconnect}>서버 연결 해제</Btn>
+          </>
+        )}
       </Bottom>
     </Frame>
   )

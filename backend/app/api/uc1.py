@@ -4,7 +4,7 @@ from fastapi.responses import FileResponse, Response
 
 from app.config import settings
 from app.schemas.contracts import JobCreate, JobCreated, JobStatus, UploadResponse
-from app.services import instagram, jobs, recommend, storage
+from app.services import audit, instagram, jobs, recommend, storage
 
 router = APIRouter(prefix="/api/uc1", tags=["UC1 게시물 건강검진"])
 CHUNK = 1024 * 1024
@@ -25,6 +25,7 @@ async def upload(request: Request, file: UploadFile = File(...)) -> UploadRespon
                     raise HTTPException(413, f"파일이 너무 커요. {settings.max_zip_mb}MB 이하로 올려 주세요.")
                 out.write(chunk)
         posts = instagram.extract(zip_path, folder)
+        audit.record("zip_uploaded", posts=len(posts), photos=sum(len(p["photos"]) for p in posts))
     except instagram.ExportError as e:
         storage.remove(upload_id)
         raise HTTPException(400, str(e)) from e

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { errorMessage, maskPhoto } from '../api/client'
-import type { MaskResponse } from '../api/types'
+import { errorMessage, maskPhoto, recordDownload } from '../api/client'
+import type { MaskResponse, Region } from '../api/types'
 import RegionPreview from '../components/RegionPreview'
 import { Bottom, Btn, C, ErrorNote, Frame, Header, JUA, Px } from '../components/wf'
 import { TYPE_LABEL } from '../lib/labels'
@@ -15,7 +15,8 @@ interface Item {
 }
 
 /** 가린 사진을 기기에 저장 (게시는 사용자가 직접) */
-function download(dataUrl: string) {
+function download(dataUrl: string, regionCount: number) {
+  void recordDownload(1, regionCount).catch(() => undefined)
   const a = document.createElement('a')
   a.href = dataUrl
   a.download = 'kkokkok_masked.jpg'
@@ -93,16 +94,19 @@ export default function Mask() {
   const [error, setError] = useState<string | null>(null)
   const [masked, setMasked] = useState<MaskResponse | null>(null)
   const [maskedUrl, setMaskedUrl] = useState<string | null>(null)
+  const [retryRegions, setRetryRegions] = useState<Region[]>([])
   const [manualConfirmed, setManualConfirmed] = useState(false)
+  const [leakConfirmed, setLeakConfirmed] = useState(false)
   const [copied, setCopied] = useState(false)
 
   if (!c || !uc2.file || !uc2.previewUrl) return <Navigate to="/uc2" replace />
   const edits = c.caption_edits ?? [] // 옛 백엔드 응답에는 없을 수 있음
 
+  const allRegions = [...c.regions, ...retryRegions]
   const items: Item[] = [
-    ...c.regions.map((r) => ({
+    ...allRegions.map((r) => ({
       id: r.id,
-      label: r.type === 'unreadable' ? '읽기 불확실한 글자' : r.type === 'name' ? `이름표 "${r.text}"` : `${TYPE_LABEL[r.type]} "${r.text}"`,
+      label: retryRegions.some((extra) => extra.id === r.id) ? `추가 발견 "${r.text}"` : r.type === 'unreadable' ? '읽기 불확실한 글자' : r.type === 'name' ? `이름표 "${r.text}"` : `${TYPE_LABEL[r.type]} "${r.text}"`,
       group: 'photo' as const,
     })),
     ...edits.map((e) => ({
@@ -112,7 +116,7 @@ export default function Mask() {
     })),
   ]
 
-  const chosen = c.regions.filter((r) => on.has(r.id))
+  const chosen = allRegions.filter((r) => on.has(r.id))
   const caption = applyEdits(
     uc2.caption,
     edits.filter((e) => on.has(e.id)).map((e) => e.text),
@@ -126,6 +130,7 @@ export default function Mask() {
     setMasked(null) // 고른 곳이 바뀌면 다시 가려야 함
     setMaskedUrl(null)
     setManualConfirmed(false)
+    setLeakConfirmed(false)
     setCopied(false)
   }
 
@@ -135,10 +140,19 @@ export default function Mask() {
     try {
       const res = await maskPhoto(uc2.file!, chosen)
       const composite = await composeFragments(uc2.file!, res.fragments, c.image_size)
+      if (res.retry_regions.length) {
+        setRetryRegions((current) => {
+          const byId = new Map(current.map((region) => [region.id, region]))
+          res.retry_regions.forEach((region) => byId.set(region.id, region))
+          return [...byId.values()]
+        })
+        setOn((current) => new Set([...current, ...res.retry_regions.map((region) => region.id)]))
+      }
       setMasked(res)
       setMaskedUrl(composite)
       setManualConfirmed(false)
-      if (res.rescan_passed && !res.requires_review) download(composite)
+      setLeakConfirmed(false)
+      if (res.rescan_passed && !res.requires_review) download(composite, chosen.length)
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -156,8 +170,9 @@ export default function Mask() {
   }
 
   const canDownload = Boolean(
-    masked && masked.leaked.length === 0 &&
-      ((masked.rescan_passed && !masked.requires_review) || (masked.requires_review && manualConfirmed)),
+    masked && (masked.leaked.length
+      ? leakConfirmed
+      : (masked.rescan_passed && !masked.requires_review) || (masked.requires_review && manualConfirmed)),
   )
 
   return (
@@ -165,12 +180,12 @@ export default function Mask() {
       <Header title="가리고 수정하기" back="/uc2" />
 
       {maskedUrl ? (
-        <RegionPreview src={maskedUrl} size={c.image_size} regions={[]} mode="none" caption="가린 사진 · 주변 배경으로 채웠어요" />
+        <RegionPreview src={maskedUrl} size={c.image_size} regions={masked?.retry_regions ?? []} mode={masked?.retry_regions.length ? 'check' : 'none'} caption={masked?.retry_regions.length ? '추가 마스킹 위치 · 다시 읽힌 글자' : '가린 사진 · 주변 배경으로 채웠어요'} />
       ) : (
         <RegionPreview
           src={uc2.previewUrl}
           size={c.image_size}
-          regions={c.regions}
+          regions={allRegions}
           mode="mask"
           activeIds={on}
           caption="미리보기 · 선택한 단서만 주변 배경색으로 가려요"
@@ -185,9 +200,13 @@ export default function Mask() {
           </span>
           <button
             type="button"
+            disabled={busy}
             onClick={() => {
               setOn(on.size === items.length ? new Set() : new Set(items.map((i) => i.id)))
               setMasked(null)
+              setMaskedUrl(null)
+              setManualConfirmed(false)
+              setLeakConfirmed(false)
               setCopied(false)
             }}
             style={{ padding: 4, border: 0, background: 'none', color: C.coral, fontSize: 13, cursor: 'pointer' }}
@@ -208,6 +227,7 @@ export default function Mask() {
                     <button
                       key={it.id}
                       type="button"
+                      disabled={busy}
                       aria-pressed={active}
                       onClick={() => toggle(it.id)}
                       style={{
@@ -278,7 +298,9 @@ export default function Mask() {
         >
           <span style={{ fontFamily: JUA, fontSize: 15 }}>{masked.leaked.length ? '재검사에서 글자가 다시 읽혔어요' : masked.requires_review ? '자동 확인이 어려운 위치가 있어요' : '재검사 통과'}</span>
           {masked.leaked.length ? (
-            <span>다시 읽힌 글자: {masked.leaked.join(', ')} · 영역을 바꿔 다시 검사해 주세요.</span>
+            <span>{masked.retry_regions.length
+              ? `재검사에서 읽힌 문구: ${masked.leaked.join(', ')} · 추가 후보 위치를 자동 선택했어요. 추가로 가리거나 확인 후 이대로 진행할 수 있어요.`
+              : `재검사에서 읽힌 문구: ${masked.leaked.join(', ')} · 자동으로 위치를 찾지 못했어요. 확인 후 이대로 진행할 수 있어요.`}</span>
           ) : masked.requires_review ? (
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
               <input type="checkbox" checked={manualConfirmed} onChange={(event) => setManualConfirmed(event.target.checked)} />
@@ -295,13 +317,24 @@ export default function Mask() {
       {error && <ErrorNote>{error}</ErrorNote>}
 
       <Bottom sticky>
-        {masked ? (
-          <Btn kind="plain" onClick={() => download(maskedUrl!)}>
+        {masked?.leaked.length && !leakConfirmed ? (
+          <>
+            {masked.retry_regions.length > 0 && (
+              <Btn onClick={save} disabled={busy || chosen.length === 0}>
+                {busy ? '추가 영역을 가리는 중...' : '추가 영역까지 가리고 다시 검사'}
+              </Btn>
+            )}
+            <Btn kind="plain" onClick={() => setLeakConfirmed(true)}>
+              문구를 확인했고 이 상태로 진행
+            </Btn>
+          </>
+        ) : canDownload ? (
+          <Btn kind="plain" onClick={() => maskedUrl && download(maskedUrl, chosen.length)}>
             저장 완료 · 다시 받기
           </Btn>
         ) : masked ? (
           <Btn kind="plain" disabled>
-            {masked.leaked.length ? '영역을 바꿔 다시 검사해 주세요' : '직접 확인 후 체크해 주세요'}
+            {masked.leaked.length ? '추가 위치를 직접 확인해 주세요' : '직접 확인 후 체크해 주세요'}
           </Btn>
         ) : (
           <Btn onClick={save} disabled={busy || chosen.length === 0}>

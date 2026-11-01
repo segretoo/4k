@@ -8,9 +8,9 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import uc1, uc2
+from app.api import audit as audit_api, uc1, uc2
 from app.config import settings
-from app.services import jobs, storage
+from app.services import audit, jobs, storage
 from app.services.gpu_client import get_gpu
 from app.services.sessions import SessionMiddleware
 
@@ -29,6 +29,8 @@ async def _sweeper() -> None:
 async def lifespan(app: FastAPI):
     if not settings.gpu_mock and len(settings.session_secret) < 32:
         raise RuntimeError("Set a private SESSION_SECRET of at least 32 characters")
+    if settings.audit_view_token and len(settings.audit_view_token) < 32:
+        raise RuntimeError("Set AUDIT_VIEW_TOKEN to a private value of at least 32 characters")
     storage.reset_all()  # 서버 재시작 시 임시 폴더 비우기
     task = asyncio.create_task(_sweeper())
     yield
@@ -41,6 +43,7 @@ app = FastAPI(title="꼭꼭 API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(SessionMiddleware)
 app.include_router(uc1.router)
 app.include_router(uc2.router)
+app.include_router(audit_api.router)
 
 
 @app.get("/health")
@@ -61,6 +64,15 @@ async def status() -> dict:
 @app.get("/api/session")
 def session_ready() -> dict:
     return {"ready": True}
+
+
+@app.post("/api/session/end")
+def session_end(request: Request) -> JSONResponse:
+    if getattr(request.state, "session_valid", False):
+        audit.record("disconnected")
+    response = JSONResponse({"ended": True})
+    response.delete_cookie("kk.session", path="/")
+    return response
 
 
 # ---- React 빌드 제공 (frontend/dist가 있을 때만) ----

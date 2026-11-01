@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from app.config import settings
 from app.schemas.contracts import CheckMeta, CheckResponse, MaskMeta, MaskResponse
-from app.services import precheck
+from app.services import audit, precheck
 from app.services.gpu_client import GpuError, get_gpu
 from app.services.gpu_queue import QueueBusy
 
@@ -57,7 +57,9 @@ async def check(request: Request, file: UploadFile = File(...), meta: str = Form
         raise HTTPException(429, "분석 대기 중이거나 이 브라우저에서 처리 중인 요청이 있어요. 잠시 후 다시 시도해 주세요.") from e
     except GpuError as e:
         raise HTTPException(503, "분석 서버가 응답하지 않아요. 잠시 후 다시 시도해 주세요.") from e
-    return precheck.build(result, m.caption, m.prior_clues, size)
+    response = precheck.build(result, m.caption, m.prior_clues, size)
+    audit.record("photo_checked", photos=1, detections=len(response.regions), warnings=len(response.warnings))
+    return response
 
 
 @router.post("/mask", response_model=MaskResponse)
@@ -85,7 +87,7 @@ async def mask(request: Request, file: UploadFile = File(...), meta: str = Form(
         if polygon and sum(p[0] * q[1] - q[0] * p[1] for p, q in zip(polygon, polygon[1:] + polygon[:1])) == 0:
             raise HTTPException(400, "가릴 영역 경로가 비어 있어요.")
     try:
-        return await get_gpu().mask(
+        response = await get_gpu().mask(
             image,
             [r["box"] for r in regions],
             [r.get("text", "") for r in regions],
@@ -94,6 +96,9 @@ async def mask(request: Request, file: UploadFile = File(...), meta: str = Form(
             regions=regions,
             owner_id=request.state.owner_id,
         )
+        audit.record("mask_checked", regions=len(regions), residuals=len(response.leaked),
+                     fragments=len(response.fragments))
+        return response
     except QueueBusy as e:
         raise HTTPException(429, "분석 대기 중이거나 이 브라우저에서 처리 중인 요청이 있어요. 잠시 후 다시 시도해 주세요.") from e
     except GpuError as e:
