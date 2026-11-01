@@ -50,11 +50,11 @@
  },
  {
   "file": "demo_07_street.jpg",
-  "caption": "등원길 산책 🚶 8시 40분 #망원동",
+  "caption": "등원길 산책 🚶 8시 40분 #개포동",
   "image_clues": [
    {
     "type": "area",
-    "value": "망원로"
+    "value": "개포로"
    }
   ]
  },
