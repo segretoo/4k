@@ -317,19 +317,8 @@ export default function Mask() {
       {error && <ErrorNote>{error}</ErrorNote>}
 
       <Bottom sticky>
-        {masked?.leaked.length && !leakConfirmed ? (
-          <>
-            {masked.retry_regions.length > 0 && (
-              <Btn onClick={save} disabled={busy || chosen.length === 0}>
-                {busy ? '추가 영역을 가리는 중...' : '추가 영역까지 가리고 다시 검사'}
-              </Btn>
-            )}
-            <Btn kind="plain" onClick={() => setLeakConfirmed(true)}>
-              문구를 확인했고 이 상태로 진행
-            </Btn>
-          </>
-        ) : canDownload ? (
-          <Btn kind="plain" onClick={() => maskedUrl && download(maskedUrl, chosen.length)}>
+        {canDownload ? (
+          <Btn kind="plain" onClick={() => download(maskedUrl!)}>
             저장 완료 · 다시 받기
           </Btn>
         ) : masked ? (

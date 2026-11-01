@@ -5,8 +5,8 @@
 | Part | Host | Work | Image retention |
 |---|---|---|---|
 | Mobile/web client | User device | Select a photo, send it for screening, show detected regions, let the user toggle regions, composite the returned fragments, export the final JPEG | Keeps the original and final image locally; final canvas export drops EXIF/GPS |
-| Product API | CPU server `10.1.1.30` | Request validation, EXIF orientation, resize to a 2200px long edge, caption/risk rules, fair GPU admission, user-facing API and static frontend | UC2 photo bytes stay in request memory; UC1 export files use an owner-scoped private temp directory with TTL and cleanup |
-| Vision API | GPU server `10.1.2.30` / NVIDIA L4 24GB | PP-OCRv5 OCR, Qwen3.5-4B BF16 risk review, vector geometry, selected-region masking and OCR rescan | UC2 image/result held in memory; product routes do not write source images or OCR JSON to artifacts |
+| Product API | CPU server (private IP) | Request validation, EXIF orientation, resize to a 2200px long edge, caption/risk rules, fair GPU admission, user-facing API and static frontend | UC2 photo bytes stay in request memory; UC1 export files use an owner-scoped private temp directory with TTL and cleanup |
+| Vision API | GPU server (private IP) / NVIDIA L4 24GB | PP-OCRv5 OCR, Qwen3.5-4B BF16 risk review, vector geometry, selected-region masking and OCR rescan | UC2 image/result held in memory; product routes do not write source images or OCR JSON to artifacts |
 
 The browser talks only to the CPU API. The CPU API calls the GPU API on the private network using an API key. The GPU API is not exposed publicly. Keep one BF16 model process on the L4: the 34-image test reached 13.12 GiB peak reserved memory for one process, so two independent BF16 processes are not safe to assume on a 24 GiB card.
 
@@ -33,7 +33,7 @@ The browser talks only to the CPU API. The CPU API calls the GPU API on the priv
 
 ### CPU host
 
-Install the FastAPI dependencies from `backend/requirements.txt`, build the web app, set `GPU_MOCK=false`, and configure `GPU_URL=http://10.1.2.30:8080`, `SESSION_SECRET` (32+ random characters), and the same `GPU_API_KEY` as the GPU service. Run one CPU API worker: UC1 jobs and the fair queue are held in process memory, so multiple workers would disagree about job state and fairness. The CPU gateway admits one GPU request at a time, keeps a FIFO waiting line capped at four requests, and allows at most one waiting request per browser. This prevents later requests from the same browser from jumping ahead of other users already waiting. The L4 endpoint has its own single inference slot and bounded queue. A full queue receives HTTP 429 and can be retried. Set Uvicorn `--limit-concurrency 8` on the 8 GiB CPU host to bound simultaneous uploads. UC1 uses owner-scoped temporary files; UC2 does not persist application files, although multipart uploads can spool to OS temporary files closed after reading.
+Install the FastAPI dependencies from `backend/requirements.txt`, build the web app, set `GPU_MOCK=false`, and configure `GPU_URL=http://<GPU 내부 IP>:8080`, `SESSION_SECRET` (32+ random characters), and the same `GPU_API_KEY` as the GPU service. Run one CPU API worker: UC1 jobs and the fair queue are held in process memory, so multiple workers would disagree about job state and fairness. The CPU gateway admits one GPU request at a time, keeps a FIFO waiting line capped at four requests, and allows at most one waiting request per browser. This prevents later requests from the same browser from jumping ahead of other users already waiting. The L4 endpoint has its own single inference slot and bounded queue. A full queue receives HTTP 429 and can be retried. Set Uvicorn `--limit-concurrency 8` on the 8 GiB CPU host to bound simultaneous uploads. UC1 uses owner-scoped temporary files; UC2 does not persist application files, although multipart uploads can spool to OS temporary files closed after reading.
 
 ### GPU host
 
