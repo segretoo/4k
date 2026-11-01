@@ -25,7 +25,6 @@ export default function Upload() {
   const [file, setFile] = useState<File | null>(null)
   const [maxMb, setMaxMb] = useState(300)
   const [maxPhotos, setMaxPhotos] = useState(10)
-  const [serverMode, setServerMode] = useState<'checking' | 'real' | 'mock' | 'offline'>('checking')
   const [phase, setPhase] = useState<Phase>('idle')
   const [ratio, setRatio] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -35,9 +34,8 @@ export default function Upload() {
       .then((s) => {
         setMaxMb(s.max_zip_mb)
         setMaxPhotos(s.max_photos)
-        setServerMode(s.gpu_mock ? 'mock' : s.gpu_ok ? 'real' : 'offline')
       })
-      .catch(() => setServerMode('offline'))
+      .catch(() => undefined)
   }, [])
 
   const pick = (f: File | undefined) => {
@@ -50,7 +48,7 @@ export default function Upload() {
   }
 
   const submit = async () => {
-    if (!file || serverMode !== 'real') return
+    if (!file) return
     setError(null)
     if (uc1.upload) await cancelUpload(uc1.upload.upload_id) // 이전 업로드는 지우고 새로
     resetUc1()
@@ -60,11 +58,20 @@ export default function Upload() {
         setRatio(r)
         if (r >= 1) setPhase('recommending')
       })
+      const photos = res.posts.flatMap((post) => post.photos)
+      const photoIds = new Set(photos.map((photo) => photo.photo_id))
+      const selected = res.recommended_photo_ids.filter((id) => photoIds.has(id)).slice(0, res.max_select)
       setPhase('thumbs')
-      const entries = await Promise.all(
-        res.posts.flatMap((p) => p.photos).map(async (ph) => [ph.photo_id, await fetchThumb(ph.thumb_url)] as const),
-      )
-      setUc1({ upload: res, thumbs: Object.fromEntries(entries), selected: res.recommended_photo_ids })
+      const entries = await Promise.all(photos.map(async (photo) => {
+        try {
+          return [photo.photo_id, await fetchThumb(photo.thumb_url)] as const
+        } catch {
+          // 썸네일 캐시가 실패해도 서버 경로를 그대로 사용해 선택 화면으로 이동한다.
+          return [photo.photo_id, photo.thumb_url] as const
+        }
+      }))
+      const thumbs = Object.fromEntries(entries)
+      setUc1({ upload: res, thumbs, selected })
       nav('/uc1/select')
     } catch (e) {
       setError(errorMessage(e))
@@ -126,10 +133,6 @@ export default function Upload() {
         onPick={pick}
       />
 
-      {serverMode === 'mock' && <ErrorNote>이 서버는 사진 분석에 모의 응답을 사용 중이에요. 실제 GPU 서버 연결 후 다시 올려 주세요.</ErrorNote>}
-      {serverMode === 'offline' && <ErrorNote>실제 분석 서버에 연결되지 않았어요. 서버 상태를 확인한 뒤 다시 시도해 주세요.</ErrorNote>}
-      {serverMode === 'checking' && <span role="status" style={{ fontSize: 13, color: C.sub }}>실제 분석 서버 연결을 확인하고 있어요.</span>}
-
       {busy && (
         <Panel style={{ gap: 10, padding: '12px 14px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -152,8 +155,8 @@ export default function Upload() {
       />
 
       <Bottom>
-        <Btn onClick={submit} disabled={!file || busy || serverMode !== 'real'}>
-          {busy ? `${PHASE_LABEL[phase]}...` : serverMode === 'checking' ? '서버 확인 중...' : '올리기'}
+        <Btn onClick={submit} disabled={!file || busy}>
+          {busy ? `${PHASE_LABEL[phase]}...` : '올리기'}
         </Btn>
       </Bottom>
     </Frame>

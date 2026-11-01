@@ -161,7 +161,16 @@ export default function Select() {
               }}
             >
               {thumb ? (
-                <img src={thumb} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img
+                  src={thumb}
+                  alt=""
+                  onError={(event) => {
+                    const image = event.currentTarget
+                    if (image.src.startsWith('blob:')) image.src = ph.thumb_url
+                    else image.style.display = 'none'
+                  }}
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                />
               ) : (
                 <Px name="photoTile" size={30} />
               )}

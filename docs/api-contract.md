@@ -85,7 +85,7 @@ The browser scales each crop box from `CheckResponse.image_size` to the locally 
 
 ## UC1: past-post review
 
-1. `POST /api/uc1/uploads` with an Instagram export ZIP. The CPU server reads only Instagram `posts_*.json` and referenced image members. It returns `UploadResponse`, thumbnails, extracted hashtags, and CPU-only caption candidates. No GPU inference is used for this first review list.
+1. `POST /api/uc1/uploads` with an Instagram export ZIP. The CPU server reads Instagram `posts_*.json` when present, or modern `your_instagram_activity/media/posts_*.html` cards and their linked image members when JSON is absent. It returns `UploadResponse`, thumbnails, extracted hashtags, and CPU-only caption candidates. No GPU inference is used for this first review list.
 2. The user may edit candidate toggles and photo selections. Candidate IDs are deterministic within a post and tied to a `type`, `value`, and source. Manually added caption clues must be exact text contained in that post's caption.
 3. `POST /api/uc1/jobs` with selected photos and candidate decisions; returns `202 { "job_id": "...", "total": 1 }`.
 4. Poll `GET /api/uc1/jobs/{job_id}` until `status` is `done` or `failed`. The existing aggregate risk fields remain in `result`; `result.post_results` adds the per-post JSON array with per-photo detections and risk levels.
