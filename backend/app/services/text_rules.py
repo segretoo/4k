@@ -56,11 +56,23 @@ def caption_entities(caption: str) -> list[Entity]:
         out.append(Entity(type="area", value=m.group(1), evidence="caption", why="동네 해시태그"))
     for m in NAME_TAG_RE.finditer(caption):
         out.append(Entity(type="name", value=m.group(1), evidence="caption", why="이름 해시태그"))
-    tagged_names = {e.value for e in out if e.type == "name"}
+    tagged_names = {e.value.casefold() for e in out if e.type == "name"}
+    non_name_values = {
+        e.value.casefold() for e in out if e.type in {"age", "area", "contact", "school", "time"}
+    }
     stop_names = {"오늘", "우리", "아이", "가족", "엄마", "아빠", "친구", "일상", "행복", "육아", "사랑"}
     for m in NAME_HASH_RE.finditer(caption):
-        if m.group(1) not in tagged_names and m.group(1) not in stop_names:
-            out.append(Entity(type="name", value=m.group(1), evidence="caption", why="이름일 수 있는 해시태그"))
+        value = m.group(1)
+        normalized = value.casefold()
+        # A short hashtag like #망원동 is a location, not a person's name.
+        # NAME_TAG_RE already extracts the name without the Korean subject suffix
+        # (e.g. #하늘이 -> 하늘), so do not add the whole hashtag as a duplicate.
+        duplicates_tagged_name = any(
+            normalized == name or normalized == f"{name}이" or name == f"{normalized}이"
+            for name in tagged_names
+        )
+        if normalized not in non_name_values and not duplicates_tagged_name and value not in stop_names:
+            out.append(Entity(type="name", value=value, evidence="caption", why="이름일 수 있는 해시태그"))
     for pattern, label in ((PHONE_RE, "전화번호"), (EMAIL_RE, "이메일")):
         for m in pattern.finditer(caption):
             out.append(Entity(type="contact", value=m.group(0), evidence="caption", why=label))
