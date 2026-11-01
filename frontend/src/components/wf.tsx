@@ -189,7 +189,7 @@ export function Btn({ children, kind = 'primary', to, href, download, onClick, d
 }
 
 /** 화면 맨 아래 버튼 묶음 (margin-top: auto 로 바닥에 붙음) */
-export function Bottom({ children, gap = 8, style, sticky }: { children: ReactNode; gap?: number; style?: CSSProperties; sticky?: boolean }) {
+export function Bottom({ children, gap = 8, style, sticky = true }: { children: ReactNode; gap?: number; style?: CSSProperties; sticky?: boolean }) {
   // sticky: 목록이 길어도 버튼이 화면 아래에 붙어 있음 (스크롤 없이 바로 누를 수 있게)
   const stick: CSSProperties = sticky
     ? {

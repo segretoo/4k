@@ -31,8 +31,8 @@ export default function Result() {
       <Header title="게시물 건강검진" back="/" step={[2, 3]} />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ fontSize: 14, color: C.sub }}>게시물 {r.analyzed_posts}개를 이어 보면</span>
-        <h1 style={{ margin: 0, fontFamily: JUA, fontWeight: 400, fontSize: 25, lineHeight: 1.3 }}>
+        <span style={{ fontSize: 13, color: C.sub }}>게시물 {r.analyzed_posts}개를 이어 보면</span>
+        <h1 style={{ margin: 0, fontFamily: JUA, fontWeight: 400, fontSize: 22, lineHeight: 1.3 }}>
           {r.level === 'safe' ? (
             <>
               낯선 사람이 알아낼 수 있는
@@ -53,8 +53,8 @@ export default function Result() {
         style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: 12,
-          padding: '14px 16px',
+          gap: 10,
+          padding: '12px 14px',
           background: C.white,
           border: `3px solid ${C.ink}`,
           borderRadius: 12,
@@ -65,8 +65,8 @@ export default function Result() {
           <div
             style={{
               flex: 'none',
-              width: 52,
-              height: 52,
+              width: 44,
+              height: 44,
               boxSizing: 'border-box',
               border: `3px solid ${C.ink}`,
               background: C.photo,
@@ -75,18 +75,18 @@ export default function Result() {
               justifyContent: 'center',
             }}
           >
-            <Px name="kidFace" size={36} label="아이 얼굴 픽셀 아이콘" />
+            <Px name="kidFace" size={30} label="아이 얼굴 픽셀 아이콘" />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
-            <span style={{ fontFamily: JUA, fontSize: 22 }}>{r.card.name ?? '이름 모름'}</span>
-            <span style={{ fontSize: 13, color: C.sub }}>{subline || '다른 단서는 찾지 못했어요'}</span>
+            <span style={{ fontFamily: JUA, fontSize: 20 }}>{r.card.name ?? '이름 모름'}</span>
+            <span style={{ fontSize: 12, color: C.sub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subline || '다른 단서는 찾지 못했어요'}</span>
           </div>
           <LevelTag level={r.level} />
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ display: 'flex' }}>
-            <Meter level={r.level} h={14} mode="scale" />
+            <Meter level={r.level} h={12} mode="scale" />
           </div>
           <div aria-hidden="true" style={{ display: 'flex', gap: 4, fontSize: 11, color: C.sub, textAlign: 'center' }}>
             {LEVELS.map((lv) => (
@@ -95,47 +95,25 @@ export default function Result() {
               </span>
             ))}
           </div>
-          <p style={{ margin: 0, padding: '8px 10px', background: C.bg, border: `2px dashed ${C.dash}`, fontSize: 13, lineHeight: 1.55 }}>
+          <p style={{ margin: 0, padding: '6px 10px', background: C.bg, border: `2px dashed ${C.dash}`, fontSize: 12.5, lineHeight: 1.5 }}>
             <Explain reason={r.reason} text={r.explanation} />
           </p>
         </div>
 
         {rows.length > 0 && (
-          <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column' }}>
-            {rows.map((t, i) => (
+          <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+            {rows.map((t) => (
               <li
                 key={t}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: i === rows.length - 1 ? '6px 0 0' : '6px 0',
-                  borderTop: `2px dashed ${C.dash}`,
-                }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', border: `2px dashed ${C.dash}`, borderRadius: 8, minWidth: 0 }}
               >
-                <span
-                  style={{
-                    flex: 'none',
-                    width: 34,
-                    height: 34,
-                    boxSizing: 'border-box',
-                    border: `2px solid ${C.ink}`,
-                    borderRadius: 6,
-                    background: C.bg,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Px name={CLUE_ICON[t]} size={22} />
-                </span>
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-                  <span style={{ fontSize: 12, color: C.sub }}>{TYPE_LABEL[t]}</span>
-                  <span style={{ fontFamily: JUA, fontSize: 16 }}>{r.card[t]}</span>
+                <Px name={CLUE_ICON[t]} size={20} style={{ flex: 'none' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                  <span style={{ fontSize: 11, color: C.sub }}>
+                    {TYPE_LABEL[t]} · 게시물 {r.sources[t]?.length ?? 0}개
+                  </span>
+                  <span style={{ fontFamily: JUA, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.card[t]}</span>
                 </div>
-                <span style={{ padding: '2px 8px', border: `2px solid ${C.ink}`, borderRadius: 6, background: C.peach, fontFamily: JUA, fontSize: 13 }}>
-                  게시물 {r.sources[t]?.length ?? 0}개
-                </span>
               </li>
             ))}
           </ul>
@@ -144,34 +122,32 @@ export default function Result() {
 
       {r.failed_photo_ids.length > 0 && <ErrorNote>사진 {r.failed_photo_ids.length}장은 분석하지 못해서 결과에서 빠져 있어요.</ErrorNote>}
 
-      <div
-        style={{
-          marginTop: 'auto',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '12px 14px',
-          background: canClean ? C.peach : C.mint,
-          border: `3px solid ${C.ink}`,
-          borderRadius: 12,
-        }}
-      >
-        <Px name={canClean ? 'bulb' : 'check'} size={24} style={{ flex: 'none' }} />
-        <span style={{ fontSize: 14, lineHeight: 1.5 }}>
-          {canClean ? (
-            <>
-              <b style={{ fontFamily: JUA, fontWeight: 400, fontSize: 15 }}>{r.cleanup.length}장만 정리하면</b> {LEVEL_LABEL[r.level]} →{' '}
-              {LEVEL_LABEL[r.level_after_cleanup!]}로 내려가요
-            </>
-          ) : r.level === 'safe' ? (
-            '지금은 정리할 게시물이 없어요. 새 게시물은 올리기 전 체크로 확인해 보세요.'
-          ) : (
-            '이름과 장소가 이어지지 않아 정리할 게시물은 없어요.'
-          )}
-        </span>
-      </div>
-
-      <Bottom gap={0} style={{ marginTop: 0 }}>
+      <Bottom gap={8}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '8px 12px',
+            background: canClean ? C.peach : C.mint,
+            border: `3px solid ${C.ink}`,
+            borderRadius: 12,
+          }}
+        >
+          <Px name={canClean ? 'bulb' : 'check'} size={20} style={{ flex: 'none' }} />
+          <span style={{ fontSize: 13, lineHeight: 1.45 }}>
+            {canClean ? (
+              <>
+                <b style={{ fontFamily: JUA, fontWeight: 400, fontSize: 14 }}>{r.cleanup.length}장만 정리하면</b> {LEVEL_LABEL[r.level]} →{' '}
+                {LEVEL_LABEL[r.level_after_cleanup!]}로 내려가요
+              </>
+            ) : r.level === 'safe' ? (
+              '지금은 정리할 게시물이 없어요. 새 게시물은 올리기 전 체크로 확인해 보세요.'
+            ) : (
+              '이름과 장소가 이어지지 않아 정리할 게시물은 없어요.'
+            )}
+          </span>
+        </div>
         {canClean ? <Btn to="/uc1/cleanup">정리할 게시물 보기</Btn> : <Btn to="/uc2">올리기 전 체크하기</Btn>}
       </Bottom>
     </Frame>

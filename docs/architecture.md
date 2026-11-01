@@ -47,7 +47,7 @@
  "entities": [
   {"type": "name", "value": "하늘", "evidence": "image", "box": [159, 128, 207, 158]},
   {"type": "school", "value": "햇살유치원", "evidence": "caption", "box": null},
-  {"type": "area", "value": "망원동", "evidence": "location_tag", "box": null}]}
+  {"type": "area", "value": "개포동", "evidence": "location_tag", "box": null}]}
 ```
 ### 연결 엔진
 ```json

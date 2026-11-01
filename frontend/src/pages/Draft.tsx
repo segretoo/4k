@@ -102,7 +102,7 @@ export default function Draft() {
               background: C.white,
               color: C.ink,
               font: 'inherit',
-              fontSize: 14,
+              fontSize: 16, // 16px 미만이면 아이폰이 입력할 때 화면을 확대함
               lineHeight: 1.5,
               resize: 'vertical',
             }}

@@ -9,7 +9,7 @@ def E(t, v, ev="image"):
 def test_link_and_minimal_cleanup():
     posts = {
         "p1": [E("name", "하늘"), E("school", "햇살유치원")],
-        "p2": [E("area", "망원동", "caption"), E("time", "8:40", "caption")],
+        "p2": [E("area", "개포동", "caption"), E("time", "8:40", "caption")],
         "p3": [E("name", "하늘", "caption"), E("age", "5살", "caption")],
         "p4": [],
     }
