@@ -23,7 +23,7 @@
 
 ## 구현 상태 점검
 
-- Instagram ZIP 파서는 `posts_*.json`과 JSON이 가리키는 이미지 파일을 CPU 서버에서 읽고, 영상은 제외한다.
+- Instagram ZIP 파서는 `posts_*.json` 형식을 우선 지원하고, JSON이 없는 최신 내보내기는 `your_instagram_activity/media/posts_*.html`의 게시물 카드와 연결된 이미지 파일을 읽는다. 영상은 제외한다.
 - UC1 API는 게시물별 캡션/해시태그 후보와 썸네일 URL을 반환한다. 사용자가 선택한 사진만 GPU 분석 작업으로 전달한다.
 - 사진 선택 UI는 API 응답의 `recommended_photo_ids`를 사용한다. 서버 추천 점수는 캡션/해시태그 후보에 기반한 1차 정렬이며, 이미지의 실제 위험 판단은 선택 후 OCR/VLM 분석에서 한다.
 - 사용자 세션은 서명된 HttpOnly 쿠키로 브라우저별 작업을 나누지만, 계정 로그인은 아니다. UC1 업로드 파일은 완료·실패·취소·TTL 때 지운다.
