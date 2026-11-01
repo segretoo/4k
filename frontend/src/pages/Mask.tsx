@@ -299,8 +299,8 @@ export default function Mask() {
           <span style={{ fontFamily: JUA, fontSize: 15 }}>{masked.leaked.length ? '재검사에서 글자가 다시 읽혔어요' : masked.requires_review ? '자동 확인이 어려운 위치가 있어요' : '재검사 통과'}</span>
           {masked.leaked.length ? (
             <span>{masked.retry_regions.length
-              ? `재검사에서 읽힌 문구: ${masked.leaked.join(', ')} · 추가 후보 위치를 자동 선택했어요. 추가로 가리거나 확인 후 이대로 진행할 수 있어요.`
-              : `재검사에서 읽힌 문구: ${masked.leaked.join(', ')} · 자동으로 위치를 찾지 못했어요. 확인 후 이대로 진행할 수 있어요.`}</span>
+              ? `재검사에서 읽힌 문구: ${masked.leaked.join(', ')} · 선택한 위치를 추가로 가리거나, 재검사 없이 현재 결과로 진행할 수 있어요.`
+              : `재검사에서 읽힌 문구: ${masked.leaked.join(', ')} · 추가 위치를 찾지 못했어요. 재검사 없이 현재 결과로 진행할 수 있어요.`}</span>
           ) : masked.requires_review ? (
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
               <input type="checkbox" checked={manualConfirmed} onChange={(event) => setManualConfirmed(event.target.checked)} />
@@ -317,8 +317,19 @@ export default function Mask() {
       {error && <ErrorNote>{error}</ErrorNote>}
 
       <Bottom sticky>
-        {canDownload ? (
-          <Btn kind="plain" onClick={() => download(maskedUrl!)}>
+        {masked?.leaked.length && !leakConfirmed ? (
+          <>
+            {masked.retry_regions.length > 0 && (
+              <Btn onClick={save} disabled={busy || chosen.length === 0}>
+                {busy ? '추가 영역을 가리는 중...' : '추가 영역까지 가리고 다시 검사'}
+              </Btn>
+            )}
+            <Btn kind="plain" onClick={() => setLeakConfirmed(true)}>
+              재검사 없이 이대로 진행
+            </Btn>
+          </>
+        ) : canDownload ? (
+            <Btn kind="plain" onClick={() => download(maskedUrl!, chosen.length)}>
             저장 완료 · 다시 받기
           </Btn>
         ) : masked ? (
