@@ -27,9 +27,12 @@ http.interceptors.request.use(async (config) => {
 /** 서버가 준 한국어 메시지(detail)를 꺼낸다. */
 export function errorMessage(e: unknown): string {
   if (e instanceof AxiosError) {
-    const detail = (e.response?.data as { detail?: unknown } | undefined)?.detail
+    const payload = e.response?.data as { detail?: unknown; message?: unknown } | undefined
+    const detail = payload?.detail ?? payload?.message
     if (typeof detail === 'string') return detail
     if (e.response?.status === 413) return '파일이 너무 커요.'
+    if (e.response?.status) return `요청 처리에 실패했어요 (HTTP ${e.response.status}). 잠시 후 다시 시도해 주세요.`
+    if (e.code === 'ECONNABORTED' || e.code === 'ETIMEDOUT') return '응답 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.'
     if (!e.response) return '서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.'
   }
   return '문제가 생겼어요. 잠시 후 다시 시도해 주세요.'

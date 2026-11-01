@@ -171,6 +171,7 @@ export interface MaskResponse {
   fragments: MaskFragment[]
   rescan_passed: boolean
   leaked: string[]
+  retry_regions: Region[]
   meta_clean: boolean
   requires_review: boolean
 }

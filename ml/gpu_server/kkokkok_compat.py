@@ -229,13 +229,36 @@ def _render_fragments(image: Image.Image, regions: list[dict], targets: list[str
     lines = gpu.ocr.read(np.asarray(ocr_image), source.size)
     norm = lambda value: "".join(ch.lower() for ch in str(value) if ch.isalnum())
     leaked = []
-    detected = [norm(line.get("text", "")) for line in lines]
-    for target in targets:
-        needle = norm(target)
-        if needle and any(needle in text for text in detected):
-            leaked.append(str(target))
+    retry_regions = []
+    for line in lines:
+        line_text = str(line.get("text", "")).strip()
+        line_norm = norm(line_text)
+        polygon = line.get("polygon") or []
+        box = _bbox(polygon)
+        if not line_text:
+            continue
+        matched_targets = [target for target in targets if norm(target) and norm(target) in line_norm]
+        if not matched_targets:
+            continue
+        if line_text not in leaked:
+            leaked.append(line_text)
+        if not box or box[0] >= box[2] or box[1] >= box[3]:
+            continue
+        matched_norms = {norm(target) for target in matched_targets}
+        source_region = next((region for region in regions
+                              if norm(region.get("text", "")) and norm(region.get("text", "")) in matched_norms), None)
+        region_type = source_region.get("type", "unreadable") if source_region else "unreadable"
+        retry_regions.append({
+            "id": f"rescan-{line.get('id') or len(retry_regions) + 1}",
+            "type": region_type,
+            "text": line_text,
+            "box": box,
+            "polygon": polygon,
+            "path": " ".join(f"{'M' if i == 0 else 'L'} {p[0]} {p[1]}" for i, p in enumerate(polygon)) + " Z",
+        })
     requires_review = len(targets) < len(regions)
     return {"fragments": fragments, "rescan_passed": bool(targets) and not leaked, "leaked": leaked,
+            "retry_regions": retry_regions,
             "meta_clean": True, "requires_review": requires_review}
 
 

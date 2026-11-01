@@ -66,7 +66,14 @@ def test_fragment_response_and_rescan(adapter):
     assert alpha.size == patch.size
     adapter.gpu.ocr = SimpleNamespace(read=lambda *_: [{"text": "가게"}])
     assert adapter._render_fragments(image, [region], ["가게"])["leaked"] == ["가게"]
-    assert adapter._render_fragments(image, [region], ["가"])["leaked"] == ["가"]
+    assert adapter._render_fragments(image, [region], ["가"])["leaked"] == ["가게"]
+    adapter.gpu.ocr = SimpleNamespace(read=lambda *_: [{"id": "T1", "text": "가게", "polygon": [[70, 40], [94, 40], [94, 48], [70, 48]]}])
+    retry = adapter._render_fragments(image, [{**region, "type": "area"}], ["가게"])
+    assert retry["retry_regions"] == [{
+        "id": "rescan-T1", "type": "area", "text": "가게", "box": [70, 40, 94, 48],
+        "polygon": [[70, 40], [94, 40], [94, 48], [70, 48]],
+        "path": "M 70 40 L 94 40 L 94 48 L 70 48 Z",
+    }]
     unknown = adapter._render_fragments(image, [region], ["읽을 수 없는 글자"])
     assert unknown["rescan_passed"] is False and unknown["requires_review"] is True
 
