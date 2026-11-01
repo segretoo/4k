@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import io
 import json
 import time
@@ -248,8 +249,12 @@ def _render_fragments(image: Image.Image, regions: list[dict], targets: list[str
         source_region = next((region for region in regions
                               if norm(region.get("text", "")) and norm(region.get("text", "")) in matched_norms), None)
         region_type = source_region.get("type", "unreadable") if source_region else "unreadable"
+        # OCR line numbers restart on every rescan. Key by geometry so a later
+        # T1 at another location cannot replace an earlier selected region.
+        geometry = json.dumps([width, height, sorted(polygon)], separators=(",", ":"))
+        retry_id = "rescan-" + hashlib.sha256(geometry.encode("ascii")).hexdigest()[:20]
         retry_regions.append({
-            "id": f"rescan-{line.get('id') or len(retry_regions) + 1}",
+            "id": retry_id,
             "type": region_type,
             "text": line_text,
             "box": box,

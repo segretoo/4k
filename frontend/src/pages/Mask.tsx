@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { errorMessage, maskPhoto, recordDownload } from '../api/client'
 import type { MaskResponse, Region } from '../api/types'
 import RegionPreview from '../components/RegionPreview'
-import { Bottom, Btn, C, ErrorNote, Frame, Header, JUA, Toggle } from '../components/wf'
+import { Bottom, Btn, C, ErrorNote, Frame, Header, JUA, Px } from '../components/wf'
 import { TYPE_LABEL } from '../lib/labels'
 import { applyEdits } from '../lib/caption'
 import { useApp } from '../state/AppState'
@@ -11,7 +11,7 @@ import { useApp } from '../state/AppState'
 interface Item {
   id: string
   label: string
-  sub: string
+  group: 'photo' | 'caption'
 }
 
 /** 가린 사진을 기기에 저장 (게시는 사용자가 직접) */
@@ -88,7 +88,7 @@ export default function Mask() {
   const c = uc2.check
   // 확실한 단서와 캡션 조각은 켜 두고, 확인 필요(판독 불확실)는 꺼 둔다 — 와이어프레임 기본값과 같음
   const [on, setOn] = useState<Set<string>>(
-    () => new Set([...(c?.regions.filter((r) => r.type !== 'unreadable').map((r) => r.id) ?? []), ...(c?.caption_edits.map((e) => e.id) ?? [])]),
+    () => new Set([...(c?.regions.filter((r) => r.type !== 'unreadable').map((r) => r.id) ?? []), ...(c?.caption_edits?.map((e) => e.id) ?? [])]),
   )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -100,25 +100,26 @@ export default function Mask() {
   const [copied, setCopied] = useState(false)
 
   if (!c || !uc2.file || !uc2.previewUrl) return <Navigate to="/uc2" replace />
+  const edits = c.caption_edits ?? [] // 옛 백엔드 응답에는 없을 수 있음
 
   const allRegions = [...c.regions, ...retryRegions]
   const items: Item[] = [
     ...allRegions.map((r) => ({
       id: r.id,
-      label: r.type === 'unreadable' ? `추가로 읽힌 글자 "${r.text}" 가리기` : r.type === 'name' ? `이름표 "${r.text}" 가리기` : `${TYPE_LABEL[r.type]} "${r.text}" 가리기`,
-      sub: retryRegions.some((extra) => extra.id === r.id) ? '마스킹 후 재검사 · 추가 후보' : r.type === 'unreadable' ? '사진 · 확인 필요' : `사진 · ${TYPE_LABEL[r.type]} 단서`,
+      label: retryRegions.some((extra) => extra.id === r.id) ? `추가 발견 "${r.text}"` : r.type === 'unreadable' ? '읽기 불확실한 글자' : r.type === 'name' ? `이름표 "${r.text}"` : `${TYPE_LABEL[r.type]} "${r.text}"`,
+      group: 'photo' as const,
     })),
-    ...c.caption_edits.map((e) => ({
+    ...edits.map((e) => ({
       id: e.id,
-      label: e.text.startsWith('#') ? `${e.text} 빼기` : `"${e.text}" 빼기`,
-      sub: `캡션 · ${TYPE_LABEL[e.type]} 단서`,
+      label: e.text.startsWith('#') ? e.text : `"${e.text}"`,
+      group: 'caption' as const,
     })),
   ]
 
   const chosen = allRegions.filter((r) => on.has(r.id))
   const caption = applyEdits(
     uc2.caption,
-    c.caption_edits.filter((e) => on.has(e.id)).map((e) => e.text),
+    edits.filter((e) => on.has(e.id)).map((e) => e.text),
   )
 
   const toggle = (id: string) => {
@@ -184,36 +185,76 @@ export default function Mask() {
         <RegionPreview
           src={uc2.previewUrl}
           size={c.image_size}
-          regions={c.regions}
+          regions={allRegions}
           mode="mask"
           activeIds={on}
           caption="미리보기 · 선택한 단서만 주변 배경색으로 가려요"
         />
       )}
 
-      <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {items.map((it) => (
-          <li
-            key={it.id}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              padding: '7px 12px',
-              background: C.white,
-              border: `3px solid ${C.ink}`,
-              borderRadius: 12,
+      {/* 가릴 곳: 짧은 칩으로 묶어서 목록이 길어지지 않게 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '12px 14px', background: C.white, border: `3px solid ${C.ink}`, borderRadius: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+          <span style={{ fontFamily: JUA, fontSize: 16 }}>
+            가릴 곳 {on.size} / {items.length}
+          </span>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setOn(on.size === items.length ? new Set() : new Set(items.map((i) => i.id)))
+              setMasked(null)
+              setMaskedUrl(null)
+              setManualConfirmed(false)
+              setLeakConfirmed(false)
+              setCopied(false)
             }}
+            style={{ padding: 4, border: 0, background: 'none', color: C.coral, fontSize: 13, cursor: 'pointer' }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
-              <span style={{ fontFamily: JUA, fontSize: 15 }}>{it.label}</span>
-              <span style={{ fontSize: 12, color: C.sub }}>{it.sub}</span>
+            {on.size === items.length ? '모두 끄기' : '모두 켜기'}
+          </button>
+        </div>
+        {(['photo', 'caption'] as const).map((g) => {
+          const list = items.filter((i) => i.group === g)
+          if (!list.length) return null
+          return (
+            <div key={g} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontSize: 12, color: C.sub }}>{g === 'photo' ? '사진에서 가리기' : '캡션에서 빼기'}</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {list.map((it) => {
+                  const active = on.has(it.id)
+                  return (
+                    <button
+                      key={it.id}
+                      type="button"
+                      disabled={busy}
+                      aria-pressed={active}
+                      onClick={() => toggle(it.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        minHeight: 36,
+                        padding: '4px 12px',
+                        border: `2px solid ${C.ink}`,
+                        borderRadius: 8,
+                        background: active ? C.coral : C.white,
+                        color: active ? C.white : C.ink,
+                        fontFamily: JUA,
+                        fontSize: 14,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {active ? <Px name="tick" size={12} /> : <span style={{ width: 12, height: 12, boxSizing: 'border-box', border: `2px solid ${C.ink}` }} />}
+                      {it.label}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
-            <Toggle on={on.has(it.id)} onClick={() => toggle(it.id)} label={it.label} />
-          </li>
-        ))}
-      </ul>
+          )
+        })}
+      </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: C.white, border: `3px solid ${C.ink}`, borderRadius: 12 }}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', fontSize: 14, lineHeight: 1.5, minWidth: 0 }}>
@@ -275,7 +316,7 @@ export default function Mask() {
       )}
       {error && <ErrorNote>{error}</ErrorNote>}
 
-      <Bottom>
+      <Bottom sticky>
         {masked?.leaked.length && !leakConfirmed ? (
           <>
             {masked.retry_regions.length > 0 && (

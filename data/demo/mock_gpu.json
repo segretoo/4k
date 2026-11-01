@@ -124,7 +124,7 @@
  "demo_07_street.jpg": {
   "texts": [
    {
-    "text": "망원로",
+    "text": "개포로",
     "box": [
      120,
      223,
@@ -138,7 +138,7 @@
   "entities": [
    {
     "type": "area",
-    "value": "망원로",
+    "value": "개포로",
     "evidence": "image",
     "box": [
      120,

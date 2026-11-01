@@ -83,7 +83,10 @@ export async function maskPhoto(file: File, regions: Region[]): Promise<MaskResp
   const form = new FormData()
   form.append('file', file)
   form.append('meta', JSON.stringify({ regions }))
-  return (await http.post<MaskResponse>('/api/uc2/mask', form)).data
+  const { data } = await http.post<MaskResponse>('/api/uc2/mask', form)
+  // A CPU server being rolled out may still omit the new coordinate field.
+  // Keep the explicit review/continue action available instead of crashing.
+  return { ...data, retry_regions: data.retry_regions ?? [] }
 }
 
 export async function getAuditEvents(token: string): Promise<AuditEvent[]> {

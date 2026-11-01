@@ -102,7 +102,7 @@ export default function Draft() {
               background: C.white,
               color: C.ink,
               font: 'inherit',
-              fontSize: 14,
+              fontSize: 16, // 16px 미만이면 아이폰이 입력할 때 화면을 확대함
               lineHeight: 1.5,
               resize: 'vertical',
             }}
@@ -126,14 +126,6 @@ export default function Draft() {
   return (
     <Frame gap={12}>
       <Header title="올리기 전 체크" back="/" />
-
-      {c.requires_review && (
-        <div role="status" style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 12px', background: '#FEF3C7', border: `3px solid ${C.ink}`, borderRadius: 12, fontSize: 13, lineHeight: 1.5 }}>
-          <b style={{ fontFamily: JUA, fontWeight: 400, fontSize: 15 }}>자동 판독만으로 안전 여부를 확정하기 어려워요.</b>
-          <span>표지판·간판이나 읽히지 않은 글자가 놓쳤을 수 있어 사진을 직접 확인해 주세요.</span>
-          {c.review_reasons.length > 0 && <span style={{ color: C.sub }}>{c.review_reasons.join(' · ')}</span>}
-        </div>
-      )}
 
       <RegionPreview src={uc2.previewUrl} size={c.image_size} regions={c.regions} mode="check" caption={c.regions.length ? '' : '사진에서 단서를 찾지 못했어요'} />
 

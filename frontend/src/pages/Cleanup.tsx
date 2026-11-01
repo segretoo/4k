@@ -1,5 +1,5 @@
 import { Navigate, useNavigate } from 'react-router-dom'
-import { Bottom, Btn, C, Chip, Frame, Header, Heading, JUA, MeterRow, Panel, Px } from '../components/wf'
+import { Bottom, Btn, C, Chip, Frame, Header, JUA, LevelTag, Px } from '../components/wf'
 import { TYPE_LABEL, formatDate } from '../lib/labels'
 import { useApp } from '../state/AppState'
 
@@ -33,29 +33,32 @@ export default function Cleanup() {
   return (
     <Frame gap={12}>
       <Header title="게시물 건강검진" back="/uc1/result" step={[3, 3]} />
-      <Heading lines={[`${r.analyzed_posts}개 중 ${r.cleanup.length}개만`, '정리하면 돼요']} sub="위험한 조합을 끊는 게시물만 골랐어요." size={25} gap={6} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <h1 style={{ margin: 0, fontFamily: JUA, fontWeight: 400, fontSize: 22, lineHeight: 1.3 }}>
+          {r.analyzed_posts}개 중 {r.cleanup.length}개만 정리하면 돼요
+        </h1>
+        {/* 지금 → 정리 후 한 줄 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <LevelTag level={r.level} size={13} />
+          <span style={{ fontFamily: JUA, fontSize: 16 }}>→</span>
+          <LevelTag level={r.level_after_cleanup} size={13} />
+          <span style={{ fontSize: 12, color: C.sub }}>{remain ? `남는 단서: ${remain}` : '남는 단서 없음'}</span>
+        </div>
+      </div>
 
-      <Panel style={{ gap: 10, padding: '12px 14px' }}>
-        <MeterRow label="지금" level={r.level} />
-        <MeterRow label="정리 후" level={r.level_after_cleanup} />
-        <span style={{ fontSize: 12, color: C.sub }}>
-          {remain ? `정리 후 남는 단서: ${remain} (어디 있는지는 알 수 없어요)` : '정리하면 남는 단서가 없어요'}
-        </span>
-      </Panel>
-
-      <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {r.cleanup_items.map((it) => {
           const thumb = it.photo_ids.map((id) => uc1.thumbs[id]).find(Boolean)
           return (
             <li
               key={it.post_id}
-              style={{ display: 'flex', gap: 12, padding: 10, background: C.white, border: `3px solid ${C.ink}`, borderRadius: 12 }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, background: C.white, border: `3px solid ${C.ink}`, borderRadius: 12 }}
             >
               <div
                 style={{
                   flex: 'none',
-                  width: 60,
-                  height: 60,
+                  width: 52,
+                  height: 52,
                   boxSizing: 'border-box',
                   border: `2px solid ${C.ink}`,
                   background: C.photo,
@@ -71,52 +74,54 @@ export default function Cleanup() {
                   <Px name="photo" size={30} label="사진 자리" />
                 )}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}>
-                <span style={{ fontFamily: JUA, fontSize: 15 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, flex: 1 }}>
+                <span style={{ fontFamily: JUA, fontSize: 14 }}>
                   {shortTitle(it.caption)}
                   {it.posted_at && ` · ${formatDate(it.posted_at)}`}
                 </span>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {it.clues.map((c) => (
-                    <Chip key={`${c.type}-${c.value}`}>
+                    <Chip key={`${c.type}-${c.value}`} size={11} pad="0 6px">
                       {TYPE_LABEL[c.type]} · {c.value}
                     </Chip>
                   ))}
                 </div>
                 {it.cuts.length > 0 && (
-                  <span style={{ fontSize: 12, color: C.sub }}>
+                  <span style={{ fontSize: 11, color: C.sub }}>
                     끊기는 연결: <b style={{ color: C.ink }}>{it.cuts.join(', ')}</b>
                   </span>
                 )}
-                <button
-                  type="button"
-                  onClick={() => fixPost(it.caption, shortTitle(it.caption))}
-                  style={{
-                    alignSelf: 'flex-start',
-                    marginTop: 2,
-                    padding: '3px 10px',
-                    border: `2px solid ${C.ink}`,
-                    borderRadius: 8,
-                    background: C.white,
-                    color: C.coralDark,
-                    fontFamily: JUA,
-                    fontSize: 13,
-                    cursor: 'pointer',
-                  }}
-                >
-                  이 게시물 가려서 다시 올리기 →
-                </button>
               </div>
+              <button
+                type="button"
+                onClick={() => fixPost(it.caption, shortTitle(it.caption))}
+                style={{
+                  flex: 'none',
+                  alignSelf: 'stretch',
+                  padding: '0 8px',
+                  border: `2px solid ${C.ink}`,
+                  borderRadius: 8,
+                  background: C.white,
+                  color: C.coralDark,
+                  fontFamily: JUA,
+                  fontSize: 12,
+                  lineHeight: 1.3,
+                  cursor: 'pointer',
+                }}
+              >
+                가려서
+                <br />
+                다시 →
+              </button>
             </li>
           )
         })}
       </ul>
 
-      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: C.sub }}>
-        앱이 게시물을 직접 지우거나 바꾸지 않아요. 삭제보다 <b style={{ color: C.ink }}>비공개 전환</b>을 먼저 권해요.
-      </p>
-
       <Bottom>
+        <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: C.sub, textAlign: 'center' }}>
+          앱이 직접 지우지 않아요. 삭제보다 <b style={{ color: C.ink }}>비공개 전환</b>을 먼저 권해요.
+        </p>
         <div style={{ display: 'flex', gap: 10 }}>
           <Btn kind="light" href="https://help.instagram.com/" style={{ flex: 1, fontSize: 16 }}>
             비공개 전환 방법
