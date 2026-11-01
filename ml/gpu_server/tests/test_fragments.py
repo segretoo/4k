@@ -66,9 +66,41 @@ def test_fragment_response_and_rescan(adapter):
     assert alpha.size == patch.size
     adapter.gpu.ocr = SimpleNamespace(read=lambda *_: [{"text": "가게"}])
     assert adapter._render_fragments(image, [region], ["가게"])["leaked"] == ["가게"]
-    assert adapter._render_fragments(image, [region], ["가"])["leaked"] == ["가"]
+    assert adapter._render_fragments(image, [region], ["가"])["leaked"] == ["가게"]
+    adapter.gpu.ocr = SimpleNamespace(read=lambda *_: [{"id": "T1", "text": "가게", "polygon": [[70, 40], [94, 40], [94, 48], [70, 48]]}])
+    retry = adapter._render_fragments(image, [{**region, "type": "area"}], ["가게"])
+    assert retry["retry_regions"][0]["id"].startswith("rescan-")
+    assert retry["retry_regions"] == [{
+        "id": retry["retry_regions"][0]["id"], "type": "area", "text": "가게", "box": [70, 40, 94, 48],
+        "polygon": [[70, 40], [94, 40], [94, 48], [70, 48]],
+        "path": "M 70 40 L 94 40 L 94 48 L 70 48 Z",
+    }]
     unknown = adapter._render_fragments(image, [region], ["읽을 수 없는 글자"])
     assert unknown["rescan_passed"] is False and unknown["requires_review"] is True
+
+
+def test_rescan_keeps_separate_locations_when_ocr_reuses_line_ids(adapter):
+    image, _ = sample()
+    region = {"id": "original", "type": "school", "text": "한빛초등학교", "box": [5, 5, 45, 20]}
+    first_polygon = [[60, 30], [100, 30], [100, 45], [60, 45]]
+    second_polygon = [[120, 60], [170, 60], [170, 80], [120, 80]]
+
+    def rescan(line_id, polygon, selected):
+        adapter.gpu.ocr = SimpleNamespace(read=lambda *_: [
+            {"id": line_id, "text": "한빛초등학교", "polygon": polygon}])
+        return adapter._render_fragments(image, selected, ["한빛초등학교"])
+
+    first = rescan("T1", first_polygon, [region])["retry_regions"][0]
+    reordered = rescan("T9", first_polygon[1:] + first_polygon[:1], [region])["retry_regions"][0]
+    assert reordered["id"] == first["id"]
+    second = rescan("T1", second_polygon, [region, first])["retry_regions"][0]
+    assert second["id"] != first["id"]
+    selected = {item["id"]: item for item in [region, first, second]}
+    assert len(selected) == 3
+    adapter.gpu.ocr = SimpleNamespace(read=lambda *_: [])
+    completed = adapter._render_fragments(image, list(selected.values()), ["한빛초등학교"])
+    assert completed["rescan_passed"] is True
+    assert {piece["region_id"] for piece in completed["fragments"]} == set(selected)
 
 
 def test_visual_box_is_not_reported_as_ocr_text(adapter):

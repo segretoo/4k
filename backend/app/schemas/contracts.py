@@ -242,5 +242,6 @@ class MaskResponse(BaseModel):
     fragments: list[MaskFragment] = []
     rescan_passed: bool
     leaked: list[str] = []
+    retry_regions: list[Region] = Field(default_factory=list)
     meta_clean: bool
     requires_review: bool = False

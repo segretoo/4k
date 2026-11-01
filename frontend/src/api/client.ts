@@ -9,6 +9,7 @@ import type {
   ServerStatus,
   UploadResponse,
   Region,
+  AuditEvent,
 } from './types'
 
 // 같은 주소에서 백엔드가 화면을 제공하므로 상대 경로. 개발 중에는 vite.config.ts 프록시가 넘겨 준다.
@@ -27,9 +28,12 @@ http.interceptors.request.use(async (config) => {
 /** 서버가 준 한국어 메시지(detail)를 꺼낸다. */
 export function errorMessage(e: unknown): string {
   if (e instanceof AxiosError) {
-    const detail = (e.response?.data as { detail?: unknown } | undefined)?.detail
+    const payload = e.response?.data as { detail?: unknown; message?: unknown } | undefined
+    const detail = payload?.detail ?? payload?.message
     if (typeof detail === 'string') return detail
     if (e.response?.status === 413) return '파일이 너무 커요.'
+    if (e.response?.status) return `요청 처리에 실패했어요 (HTTP ${e.response.status}). 잠시 후 다시 시도해 주세요.`
+    if (e.code === 'ECONNABORTED' || e.code === 'ETIMEDOUT') return '응답 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.'
     if (!e.response) return '서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.'
   }
   return '문제가 생겼어요. 잠시 후 다시 시도해 주세요.'
@@ -79,5 +83,22 @@ export async function maskPhoto(file: File, regions: Region[]): Promise<MaskResp
   const form = new FormData()
   form.append('file', file)
   form.append('meta', JSON.stringify({ regions }))
-  return (await http.post<MaskResponse>('/api/uc2/mask', form)).data
+  const { data } = await http.post<MaskResponse>('/api/uc2/mask', form)
+  // A CPU server being rolled out may still omit the new coordinate field.
+  // Keep the explicit review/continue action available instead of crashing.
+  return { ...data, retry_regions: data.retry_regions ?? [] }
+}
+
+export async function getAuditEvents(token: string): Promise<AuditEvent[]> {
+  return (await http.get<{ events: AuditEvent[] }>('/api/admin/audit', {
+    headers: { 'X-Audit-Token': token },
+  })).data.events
+}
+
+export async function recordDownload(photos: number, regions: number): Promise<void> {
+  await http.post('/api/audit/download', { photos, regions })
+}
+
+export async function endSession(): Promise<void> {
+  await http.post('/api/session/end')
 }

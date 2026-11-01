@@ -31,6 +31,7 @@ uploads/
 outputs/
 /ml/gpu_server/artifacts/
 backend/.test-tmp/
+backend/logs/
 
 # os/editor
 .DS_Store
