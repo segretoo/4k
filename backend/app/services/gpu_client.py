@@ -10,14 +10,12 @@ import json
 from functools import lru_cache
 
 import httpx
-from PIL import Image, ImageDraw, ImageFilter, ImageOps
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps, ImageStat
 
 from app.config import settings
 from app.schemas.contracts import AnalyzeResult, Entity, MaskResponse, ScreenResult, TextItem, risk_level
 from app.services.text_rules import caption_entities, keyword_hints
-
-# GPU는 한 번에 한 작업만 (L4 24GB 과부하 방지)
-_gpu_lock = asyncio.Lock()
+from app.services.gpu_queue import gpu_queue
 
 
 class GpuError(RuntimeError):
@@ -28,12 +26,13 @@ class GpuError(RuntimeError):
 class HttpGpu:
     def __init__(self) -> None:
         self.base = settings.gpu_url.rstrip("/")
+        self.headers = {"X-API-Key": settings.gpu_api_key} if settings.gpu_api_key else {}
 
-    async def _post(self, path: str, **kwargs) -> dict:
-        async with _gpu_lock:
+    async def _post(self, path: str, *, owner_id: str = "", **kwargs) -> dict:
+        async with gpu_queue.slot(owner_id):
             try:
                 async with httpx.AsyncClient(timeout=settings.gpu_timeout_s) as client:
-                    r = await client.post(self.base + path, **kwargs)
+                    r = await client.post(self.base + path, headers=self.headers, **kwargs)
                     r.raise_for_status()
                     return r.json()
             except httpx.HTTPError as e:
@@ -42,27 +41,43 @@ class HttpGpu:
     async def health(self) -> bool:
         try:
             async with httpx.AsyncClient(timeout=5) as client:
-                return (await client.get(self.base + "/gpu/v1/health")).status_code == 200
+                return (await client.get(self.base + "/gpu/v1/health", headers=self.headers)).status_code == 200
         except httpx.HTTPError:
             return False
 
     async def screen_captions(self, posts: list[dict]) -> list[ScreenResult]:
-        data = await self._post("/gpu/v1/screen-captions", json={"posts": posts})
+        data = await self._post("/gpu/v1/screen-captions", owner_id=posts[0].get("owner_id", "") if posts else "",
+                                json={"posts": [{k: v for k, v in post.items() if k != "owner_id"} for post in posts]})
         return [ScreenResult(**r) for r in data.get("results", [])]
 
     async def analyze(self, image: bytes, meta: dict) -> AnalyzeResult:
+        gpu_meta = {key: value for key, value in meta.items() if key != "owner_id"}
         data = await self._post(
             "/gpu/v1/analyze",
+            owner_id=meta.get("owner_id", ""),
             files={"file": ("photo.jpg", image, "image/jpeg")},
-            data={"meta": json.dumps(meta, ensure_ascii=False)},
+            data={"meta": json.dumps(gpu_meta, ensure_ascii=False)},
         )
+        entities = data.setdefault("entities", [])
+        known = {(item.get("type"), item.get("value"), item.get("evidence")) for item in entities}
+        for candidate in caption_entities(meta.get("caption", "")):
+            key = (candidate.type, candidate.value, candidate.evidence)
+            if key not in known:
+                entities.append(candidate.model_dump())
+                known.add(key)
         return AnalyzeResult(**data)
 
-    async def mask(self, image: bytes, boxes: list[list[int]], targets: list[str]) -> MaskResponse:
+    async def mask(self, image: bytes, boxes: list[list[int]], targets: list[str],
+                   polygons: list[list[list[int]]] | None = None,
+                   region_ids: list[str] | None = None,
+                   regions: list[dict] | None = None, owner_id: str = "") -> MaskResponse:
+        meta = {"boxes": boxes, "targets": targets, "polygons": polygons or [],
+                "region_ids": region_ids or [], "regions": regions or []}
         data = await self._post(
             "/gpu/v1/mask",
+            owner_id=owner_id,
             files={"file": ("photo.jpg", image, "image/jpeg")},
-            data={"meta": json.dumps({"boxes": boxes, "targets": targets}, ensure_ascii=False)},
+            data={"meta": json.dumps(meta, ensure_ascii=False)},
         )
         return MaskResponse(**data)
 
@@ -109,7 +124,8 @@ class MockGpu:
         return True
 
     async def screen_captions(self, posts: list[dict]) -> list[ScreenResult]:
-        await asyncio.sleep(min(settings.mock_delay_s, 0.3))
+        async with gpu_queue.slot(posts[0].get("owner_id", "") if posts else ""):
+            await asyncio.sleep(min(settings.mock_delay_s, 0.3))
         out = []
         for p in posts:
             hints = keyword_hints(p.get("caption", ""))
@@ -117,7 +133,7 @@ class MockGpu:
         return out
 
     async def analyze(self, image: bytes, meta: dict) -> AnalyzeResult:
-        async with _gpu_lock:
+        async with gpu_queue.slot(meta.get("owner_id", "")):
             await asyncio.sleep(settings.mock_delay_s)
         fx = _lookup(image, meta.get("source", ""))
         texts = [TextItem(**t) for t in fx.get("texts", [])]
@@ -131,29 +147,55 @@ class MockGpu:
             elapsed_ms=int(settings.mock_delay_s * 1000),
         )
 
-    async def mask(self, image: bytes, boxes: list[list[int]], targets: list[str]) -> MaskResponse:
-        """가짜 가리기: 상자 둘레의 평균색으로 채우고 흐리게. 진짜는 GPU의 OpenCV NS 인페인팅."""
-        async with _gpu_lock:
+    async def mask(self, image: bytes, boxes: list[list[int]], targets: list[str],
+                   polygons: list[list[list[int]]] | None = None,
+                   region_ids: list[str] | None = None,
+                   regions: list[dict] | None = None, owner_id: str = "") -> MaskResponse:
+        """CPU demo returns alpha-composited fragments, never a completed full image."""
+        async with gpu_queue.slot(owner_id):
             await asyncio.sleep(min(settings.mock_delay_s, 0.3))
         with Image.open(io.BytesIO(image)) as im:
-            im = ImageOps.exif_transpose(im).convert("RGB")
-            draw = ImageDraw.Draw(im)
-            w, h = im.size
-            for x1, y1, x2, y2 in boxes:
-                pad_x, pad_y = int((x2 - x1) * 0.15), int((y2 - y1) * 0.15)
-                x1, y1, x2, y2 = max(0, x1 - pad_x), max(0, y1 - pad_y), min(w, x2 + pad_x), min(h, y2 + pad_y)
-                ring = im.crop((max(0, x1 - 6), max(0, y1 - 6), min(w, x2 + 6), min(h, y2 + 6))).resize((1, 1))
-                draw.rectangle((x1, y1, x2, y2), fill=ring.getpixel((0, 0)))
-                region = im.crop((x1, y1, x2, y2)).filter(ImageFilter.GaussianBlur(4))
-                im.paste(region, (x1, y1))
-            buf = io.BytesIO()
-            im.save(buf, "JPEG", quality=92)  # EXIF를 넘기지 않아 메타데이터 없음
-        return MaskResponse(
-            image_base64=base64.b64encode(buf.getvalue()).decode(),
-            rescan_passed=True,
-            leaked=[],
-            meta_clean=True,
-        )
+            source = ImageOps.exif_transpose(im).convert("RGB")
+        selected = regions or []
+        if not selected:
+            selected = []
+            for i, box in enumerate(boxes):
+                polygon = (polygons or [])[i] if i < len(polygons or []) else None
+                selected.append({"id": (region_ids or [])[i] if i < len(region_ids or []) else f"r{i+1}",
+                                 "box": box, "polygon": polygon, "text": targets[i] if i < len(targets) else ""})
+        width, height = source.size
+        fragments = []
+        for index, region in enumerate(selected):
+            points = region.get("polygon")
+            if not points:
+                x1, y1, x2, y2 = region["box"]
+                points = [[x1, y1], [x2, y1], [x2, y2], [x1, y2]]
+            xs, ys = zip(*points)
+            pad = 28
+            left, top = max(0, min(xs) - pad), max(0, min(ys) - pad)
+            right, bottom = min(width, max(xs) + pad + 1), min(height, max(ys) + pad + 1)
+            crop = source.crop((left, top, right, bottom))
+            core = Image.new("L", crop.size, 0)
+            local_points = [(int(x-left), int(y-top)) for x, y in points]
+            ImageDraw.Draw(core).polygon(local_points, fill=255)
+            core = core.filter(ImageFilter.MaxFilter(5))
+            outer = core.filter(ImageFilter.MaxFilter(27))
+            ring = ImageChops.subtract(outer, core)
+            stats = ImageStat.Stat(crop, mask=ring)
+            fill = tuple(int(round(c)) for c in stats.mean[:3])
+            feather = ImageChops.lighter(core, core.filter(ImageFilter.GaussianBlur(8)))
+            patch = Image.new("RGB", crop.size, fill)
+            patch_buf, alpha_buf = io.BytesIO(), io.BytesIO()
+            patch.save(patch_buf, format="PNG", compress_level=1)
+            feather.save(alpha_buf, format="PNG", compress_level=1)
+            fragments.append({
+                "region_id": str(region.get("id") or f"r{index+1}"),
+                "crop_box_original_pixels": [left, top, right, bottom],
+                "patch_base64": base64.b64encode(patch_buf.getvalue()).decode("ascii"),
+                "alpha_base64": base64.b64encode(alpha_buf.getvalue()).decode("ascii"),
+                "media_type": "image/png",
+            })
+        return MaskResponse(fragments=fragments, rescan_passed=True, leaked=[], meta_clean=True)
 
 
 def get_gpu() -> HttpGpu | MockGpu:

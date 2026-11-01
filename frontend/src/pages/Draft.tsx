@@ -140,7 +140,7 @@ export default function Draft() {
           ) : c.warnings.length ? (
             '새로 더해지는 단서는 없어요.'
           ) : (
-            '아이를 특정할 단서가 보이지 않아요.'
+            c.requires_review ? '자동 판독에서 단서를 확정하지 못했어요. 사진을 직접 확인해 주세요.' : '아이를 특정할 단서가 보이지 않아요.'
           )}
         </span>
       </Panel>

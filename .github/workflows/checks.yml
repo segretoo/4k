@@ -1,0 +1,35 @@
+name: API and frontend checks
+on:
+  pull_request:
+  push:
+    branches: [main, 'feat/**', 'fix/**']
+permissions:
+  contents: read
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r backend/requirements.txt numpy opencv-python-headless==5.0.0.93
+      - run: python -m pytest -q
+        working-directory: backend
+      - run: python -m pytest ml/gpu_server/tests -q
+      - run: python -m compileall -q ml/gpu_server
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - run: npm run lint
+        working-directory: frontend

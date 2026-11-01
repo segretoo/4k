@@ -1,10 +1,12 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
-import type { CheckResponse, EngineResult, UploadResponse } from '../api/types'
+import type { CheckResponse, EngineResult, ManualCaptionClue, UploadResponse } from '../api/types'
 
 interface Uc1State {
   upload: UploadResponse | null
-  thumbs: Record<string, string> // photo_id → 브라우저 메모리의 썸네일 주소 (서버 파일은 분석 후 삭제됨)
+  thumbs: Record<string, string> // photo_id → 실제 서버 썸네일 URL 또는 메모리 캐시 URL
   selected: string[]
+  candidateSelections: Record<string, string[]>
+  manualCandidates: Record<string, ManualCaptionClue[]>
   jobId: string | null
   result: EngineResult | null
 }
@@ -25,7 +27,7 @@ interface AppState {
   resetUc2: () => void
 }
 
-const emptyUc1: Uc1State = { upload: null, thumbs: {}, selected: [], jobId: null, result: null }
+const emptyUc1: Uc1State = { upload: null, thumbs: {}, selected: [], candidateSelections: {}, manualCandidates: {}, jobId: null, result: null }
 const emptyUc2: Uc2State = { file: null, previewUrl: null, caption: '', check: null }
 
 const Ctx = createContext<AppState | null>(null)
@@ -37,11 +39,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // 함수는 한 번만 만들어 useEffect 의존성으로 써도 반복 실행되지 않게 한다
   const setUc1 = useCallback((patch: Partial<Uc1State>) => setUc1State((s) => ({ ...s, ...patch })), [])
   const resetUc1 = useCallback(
-    () =>
-      setUc1State((s) => {
-        Object.values(s.thumbs).forEach((u) => URL.revokeObjectURL(u))
-        return emptyUc1
-      }),
+    () => setUc1State((s) => {
+      Object.values(s.thumbs).filter((url) => url.startsWith('blob:')).forEach((url) => URL.revokeObjectURL(url))
+      return emptyUc1
+    }),
     [],
   )
   const setUc2 = useCallback((patch: Partial<Uc2State>) => setUc2State((s) => ({ ...s, ...patch })), [])

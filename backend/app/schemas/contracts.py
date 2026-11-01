@@ -3,11 +3,13 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-EntityType = Literal["name", "age", "school", "area", "time"]
+EntityType = Literal["name", "age", "school", "area", "time", "contact"]
 Evidence = Literal["image", "caption"]
 Level = Literal["safe", "caution", "high", "very_high"]
 Severity = Literal["high", "medium", "check"]
 Box = list[int]  # [x1, y1, x2, y2], 방향 보정한 원본 픽셀 기준
+Point = list[int]  # [x, y], 방향 보정한 원본 픽셀 기준
+Polygon = list[Point]
 
 LEVEL_ORDER: list[Level] = ["safe", "caution", "high", "very_high"]
 PLACE: set[str] = {"school", "area"}
@@ -29,6 +31,8 @@ def risk_level(types: set[str]) -> Level:
 class TextItem(BaseModel):
     text: str
     box: Optional[Box] = None
+    polygon: Optional[Polygon] = None
+    path: Optional[str] = None
     source: Literal["vlm", "ocr", "caption"] = "vlm"
     conf: Optional[float] = None
 
@@ -38,7 +42,10 @@ class Entity(BaseModel):
     value: str
     evidence: Evidence
     box: Optional[Box] = None
+    polygon: Optional[Polygon] = None
+    path: Optional[str] = None
     why: str = ""
+    time_source: Optional[Literal["analog_clock", "digital_clock", "text_timestamp", "schedule", "none"]] = None
 
 
 class Clue(BaseModel):
@@ -59,6 +66,9 @@ class AnalyzeResult(BaseModel):
     entities: list[Entity] = []
     risk: Optional[Risk] = None
     elapsed_ms: int = 0
+    requires_review: bool = False
+    review_reasons: list[str] = []
+    pipeline_metrics: dict = Field(default_factory=dict)
 
 
 class ScreenResult(BaseModel):
@@ -73,11 +83,22 @@ class PhotoSummary(BaseModel):
     thumb_url: str
 
 
+class CaptionCandidate(BaseModel):
+    id: str
+    type: EntityType
+    value: str
+    source: Literal["caption", "hashtag"]
+    why: str = ""
+    selected_by_default: bool = True
+
+
 class PostSummary(BaseModel):
     post_id: str
     posted_at: Optional[str] = None
     caption: str = ""
     photos: list[PhotoSummary] = []
+    hashtags: list[str] = []
+    candidates: list[CaptionCandidate] = []
     recommended: bool = False
     hints: list[str] = []
     score: float = 0.0
@@ -92,9 +113,16 @@ class UploadResponse(BaseModel):
     posts: list[PostSummary]
 
 
+class ManualCaptionClue(BaseModel):
+    type: EntityType
+    value: str = Field(min_length=1, max_length=120)
+
+
 class JobCreate(BaseModel):
     upload_id: str
     photo_ids: list[str] = Field(min_length=1)
+    candidate_selections: Optional[dict[str, list[str]]] = None
+    manual_candidates: Optional[dict[str, list[ManualCaptionClue]]] = None
 
 
 class JobCreated(BaseModel):
@@ -124,6 +152,7 @@ class EngineResult(BaseModel):
     clues: list[Clue] = []
     analyzed_posts: int = 0
     failed_photo_ids: list[str] = []
+    post_results: list[dict] = []
 
 
 class JobStatus(BaseModel):
@@ -136,7 +165,7 @@ class JobStatus(BaseModel):
 
 # ---------- UC2 ----------
 class CheckMeta(BaseModel):
-    caption: str = ""
+    caption: str = Field(default="", max_length=2200)
     prior_clues: list[Clue] = []
 
 
@@ -145,6 +174,9 @@ class Region(BaseModel):
     type: EntityType | Literal["unreadable"]
     text: str
     box: Box
+    polygon: Optional[Polygon] = None
+    path: Optional[str] = None
+    time_source: Optional[Literal["analog_clock", "digital_clock", "text_timestamp", "schedule", "none"]] = None
 
 
 class Warning(BaseModel):
@@ -172,15 +204,43 @@ class CheckResponse(BaseModel):
     caption_suggestion: str = ""
     caption_edits: list[CaptionEdit] = []
     image_size: list[int]
+    requires_review: bool = False
+    review_reasons: list[str] = []
+    ocr_texts: list[TextItem] = Field(default_factory=list)
+    pipeline_metrics: dict = Field(default_factory=dict)
+
+
+class MaskRegion(BaseModel):
+    id: str
+    box: Box
+    polygon: Optional[Polygon] = None
+    text: str = ""
+    type: Optional[EntityType | Literal["unreadable"]] = None
 
 
 class MaskMeta(BaseModel):
-    boxes: list[Box] = Field(min_length=1)
+    regions: list[MaskRegion] = Field(default_factory=list, max_length=256)
+    boxes: list[Box] = Field(default_factory=list, max_length=256)
+    polygons: list[Polygon] = Field(default_factory=list, max_length=256)
+    region_ids: list[str] = []
     targets: list[str] = []
+
+    def model_post_init(self, __context) -> None:
+        if not self.regions and not self.boxes and not self.polygons:
+            raise ValueError("regions, boxes, or polygons must contain at least one region")
+
+
+class MaskFragment(BaseModel):
+    region_id: str
+    crop_box_original_pixels: Box
+    patch_base64: str
+    alpha_base64: str
+    media_type: Literal["image/png"] = "image/png"
 
 
 class MaskResponse(BaseModel):
-    image_base64: str
+    fragments: list[MaskFragment] = []
     rescan_passed: bool
     leaked: list[str] = []
     meta_clean: bool
+    requires_review: bool = False

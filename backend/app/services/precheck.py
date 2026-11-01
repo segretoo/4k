@@ -11,6 +11,7 @@ ACTION = {
     "school": "유치원·반 이름 가리기",
     "area": "간판·표지판 가리기, 위치 태그 빼기",
     "time": "시간 표현 빼기",
+    "contact": "전화번호·이메일 가리기",
 }
 
 
@@ -30,11 +31,13 @@ def build(result: AnalyzeResult, caption: str, prior: list[Clue], image_size: tu
     regions: list[Region] = []
     for e in result.entities:
         if e.box:
-            regions.append(Region(id=f"r{len(regions) + 1}", type=e.type, text=e.value, box=e.box))
+            regions.append(Region(id=f"r{len(regions) + 1}", type=e.type, text=e.value, box=e.box,
+                                  polygon=e.polygon, path=e.path, time_source=e.time_source))
     known = {tuple(r.box) for r in regions}
     for t in result.texts:  # 단서로 판단되지 않았지만 읽힌 글자 = 확인 필요
         if t.box and tuple(t.box) not in known and t.source != "caption" and (t.conf is not None and t.conf < 0.6):
-            regions.append(Region(id=f"r{len(regions) + 1}", type="unreadable", text=t.text, box=t.box))
+            regions.append(Region(id=f"r{len(regions) + 1}", type="unreadable", text=t.text, box=t.box,
+                                  polygon=t.polygon, path=t.path))
 
     warnings: list[Warning] = []
     for t in TYPE_ORDER:
@@ -84,6 +87,10 @@ def build(result: AnalyzeResult, caption: str, prior: list[Clue], image_size: tu
         caption_suggestion=suggestion,
         caption_edits=edits,
         image_size=list(image_size),
+        requires_review=result.requires_review,
+        review_reasons=result.review_reasons,
+        ocr_texts=[text for text in result.texts if text.source == "ocr"],
+        pipeline_metrics=result.pipeline_metrics,
     )
 
 

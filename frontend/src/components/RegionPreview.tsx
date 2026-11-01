@@ -48,6 +48,8 @@ export default function RegionPreview({
             const [x1, y1, x2, y2] = r.box
             const unk = r.type === 'unreadable'
             const on = activeIds?.has(r.id) ?? true
+            const hasPolygon = !!r.polygon && r.polygon.length >= 3
+            const polygonPath = r.path || (hasPolygon ? `M ${r.polygon!.map(([x, y]) => `${x} ${y}`).join(' L ')} Z` : '')
             const pos = {
               left: `${(x1 / w) * 100}%`,
               top: `${(y1 / h) * 100}%`,
@@ -55,6 +57,13 @@ export default function RegionPreview({
               height: `${((y2 - y1) / h) * 100}%`,
             }
             if (mode === 'mask') {
+              if (hasPolygon) {
+                return (
+                  <svg key={r.id} aria-hidden="true" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }}>
+                    <path d={polygonPath} fill={on ? 'rgba(255,227,211,.55)' : 'transparent'} stroke={on ? 'none' : unk ? '#A16207' : C.coral} strokeWidth="3" strokeDasharray={!on && unk ? '6 4' : undefined} vectorEffect="non-scaling-stroke" />
+                  </svg>
+                )
+              }
               return (
                 <div
                   key={r.id}
@@ -64,7 +73,7 @@ export default function RegionPreview({
                     ...pos,
                     boxSizing: 'border-box',
                     border: on ? 'none' : unk ? '3px dashed #A16207' : `3px solid ${C.coral}`,
-                    background: on ? 'rgba(255,227,211,.55)' : 'transparent',
+                    background: 'transparent',
                     backdropFilter: on ? 'blur(6px)' : undefined,
                     WebkitBackdropFilter: on ? 'blur(6px)' : undefined,
                   }}
@@ -73,10 +82,13 @@ export default function RegionPreview({
             }
             return (
               <div key={r.id} aria-hidden="true">
-                <div
-                  className={unk ? undefined : 'blink'}
-                  style={{ position: 'absolute', ...pos, boxSizing: 'border-box', border: unk ? '3px dashed #A16207' : `3px solid ${C.coral}` }}
-                />
+                {hasPolygon ? (
+                  <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible' }}>
+                    <path className={unk ? undefined : 'blink'} d={polygonPath} fill="none" stroke={unk ? '#A16207' : C.coral} strokeWidth="3" strokeDasharray={unk ? '6 4' : undefined} vectorEffect="non-scaling-stroke" />
+                  </svg>
+                ) : (
+                  <div className={unk ? undefined : 'blink'} style={{ position: 'absolute', ...pos, boxSizing: 'border-box', border: unk ? '3px dashed #A16207' : `3px solid ${C.coral}` }} />
+                )}
                 <span
                   style={{
                     position: 'absolute',

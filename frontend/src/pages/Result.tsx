@@ -120,6 +120,25 @@ export default function Result() {
         )}
       </div>
 
+      {r.post_results?.length > 0 && (
+        <section aria-label="게시물별 분석 결과" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <h2 style={{ margin: 0, fontFamily: JUA, fontWeight: 400, fontSize: 18 }}>게시물별 결과</h2>
+          {r.post_results.map((post) => (
+            <details key={post.post_id} style={{ padding: '10px 12px', background: C.white, border: `2px solid ${C.ink}`, borderRadius: 10 }}>
+              <summary style={{ cursor: 'pointer', fontFamily: JUA }}>{post.posted_at ?? '게시일 정보 없음'} · 사진 {post.photos.length}장 · {LEVEL_LABEL[post.risk_level]}</summary>
+              <p style={{ margin: '8px 0', fontSize: 12, lineHeight: 1.5, overflowWrap: 'anywhere' }}>{post.caption}</p>
+              {post.hashtags.length > 0 && <p style={{ margin: '4px 0 8px', fontSize: 12, color: C.sub }}>{post.hashtags.map((tag) => `#${tag}`).join(' ')}</p>}
+              {post.photos.map((photo) => (
+                <div key={photo.photo_id} style={{ padding: '8px 0', borderTop: `1px dashed ${C.dash}`, fontSize: 12 }}>
+                  <b>{photo.source || photo.photo_id}</b>{photo.analysis_failed ? <span> · 분석 실패</span> : null}
+                  {photo.entities.length > 0 ? <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>{photo.entities.map((entity, index) => <li key={`${entity.type}-${entity.value}-${index}`}>{TYPE_LABEL[entity.type]}: {entity.value} · {entity.evidence === 'caption' ? '게시글' : '사진'}</li>)}</ul> : !photo.analysis_failed ? <span> · 검출 단서 없음</span> : null}
+                </div>
+              ))}
+            </details>
+          ))}
+        </section>
+      )}
+
       {r.failed_photo_ids.length > 0 && <ErrorNote>사진 {r.failed_photo_ids.length}장은 분석하지 못해서 결과에서 빠져 있어요.</ErrorNote>}
 
       <Bottom gap={8}>
