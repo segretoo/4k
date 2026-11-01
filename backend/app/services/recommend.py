@@ -19,15 +19,26 @@ async def screen(posts: list[dict], owner_id: str = "") -> dict[str, ScreenResul
 
 
 def pick(posts: list[dict], scores: dict[str, ScreenResult]) -> list[str]:
-    """단서 점수가 있는 게시물(점수순) → 나머지 최근순. posts는 이미 최근순."""
+    """위험 단서가 있는 게시물을 먼저 고르고, 사진은 게시물별로 고르게 추천한다."""
     order = sorted(posts, key=lambda p: -scores[p["post_id"]].score) if posts else []
     picked: list[str] = []
-    for p in order:
-        if scores[p["post_id"]].score <= 0:
+    risky = [p for p in order if scores[p["post_id"]].score > 0]
+
+    # 한 게시물의 여러 장이 선택 한도를 차지하기 전에, 위험 후보 게시물마다 대표 사진을 먼저 선택.
+    for p in risky:
+        if len(picked) >= settings.max_photos:
             break
-        for ph in p["photos"]:
-            if len(picked) < settings.max_photos:
-                picked.append(ph["photo_id"])
+        if p["photos"]:
+            picked.append(p["photos"][0]["photo_id"])
+
+    # 남은 선택 수는 위험 후보 게시물의 추가 사진으로 채운다.
+    for p in risky:
+        for ph in p["photos"][1:]:
+            if len(picked) >= settings.max_photos:
+                break
+            picked.append(ph["photo_id"])
+
+    # 위험 후보 사진이 부족하면 최근 게시물 사진으로 한도를 채운다.
     for p in posts:
         for ph in p["photos"]:
             if len(picked) >= settings.max_photos:

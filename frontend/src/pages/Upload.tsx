@@ -58,11 +58,20 @@ export default function Upload() {
         setRatio(r)
         if (r >= 1) setPhase('recommending')
       })
+      const photos = res.posts.flatMap((post) => post.photos)
+      const photoIds = new Set(photos.map((photo) => photo.photo_id))
+      const selected = res.recommended_photo_ids.filter((id) => photoIds.has(id)).slice(0, res.max_select)
       setPhase('thumbs')
-      const entries = await Promise.all(
-        res.posts.flatMap((p) => p.photos).map(async (ph) => [ph.photo_id, await fetchThumb(ph.thumb_url)] as const),
-      )
-      setUc1({ upload: res, thumbs: Object.fromEntries(entries), selected: res.recommended_photo_ids })
+      const entries = await Promise.all(photos.map(async (photo) => {
+        try {
+          return [photo.photo_id, await fetchThumb(photo.thumb_url)] as const
+        } catch {
+          // 썸네일 캐시가 실패해도 서버 경로를 그대로 사용해 선택 화면으로 이동한다.
+          return [photo.photo_id, photo.thumb_url] as const
+        }
+      }))
+      const thumbs = Object.fromEntries(entries)
+      setUc1({ upload: res, thumbs, selected })
       nav('/uc1/select')
     } catch (e) {
       setError(errorMessage(e))
